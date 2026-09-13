@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zycus Contract Authoring Agent</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 640px; margin: 4rem auto; padding: 0 1.5rem;
+    background: #0b0d10; color: #e6e8eb;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .subtitle { color: #9aa4b2; margin-bottom: 2rem; }
+  .card {
+    border: 1px solid #2a2f36; border-radius: 10px; padding: 1.25rem;
+    background: #14171c;
+  }
+  .row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #1f242b; font-size: 0.9rem; }
+  .row:last-child { border-bottom: none; }
+  .label { color: #9aa4b2; }
+  .ok { color: #4ade80; }
+  .bad { color: #f87171; }
+  .pending { color: #fbbf24; font-size: 0.85rem; margin-top: 1.5rem; }
+  code { background: #1f242b; padding: 0.1rem 0.4rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+  <h1>Zycus Contract Authoring Agent</h1>
+  <div class="subtitle">Mutual NDA drafting with explicit uncertainty handling — Phase 0 walking skeleton</div>
+  <div class="card" id="status">Loading /api/health…</div>
+  <div class="pending">Full pipeline (Review · Draft · Agent Trace tabs) arrives in Phase 4.</div>
+
+  <script>
+    async function loadHealth() {
+      const el = document.getElementById('status');
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        const row = (label, value, cls = '') =>
+          `<div class="row"><span class="label">${label}</span><span class="${cls}">${value}</span></div>`;
+        el.innerHTML =
+          row('Status', data.status, data.status === 'ok' ? 'ok' : 'bad') +
+          row('Server date (' + data.timezone + ')', data.today_long_form) +
+          row('Groq key configured', data.groq_key_configured, data.groq_key_configured ? 'ok' : 'bad') +
+          row('Gemini key configured', data.gemini_key_configured, data.gemini_key_configured ? 'ok' : 'bad') +
+          row('Fallback enabled', data.fallback_enabled) +
+          row('Normalizer model', '<code>' + data.models.normalizer + '</code>') +
+          row('Analyst model', '<code>' + data.models.analyst + '</code>') +
+          row('Verifier model', '<code>' + data.models.verifier + '</code>') +
+          row('LLM mode', data.llm_mode) +
+          row('Phase', data.phase);
+      } catch (err) {
+        el.innerHTML = '<span class="bad">Failed to reach /api/health: ' + err + '</span>';
+      }
+    }
+    loadHealth();
+  </script>
+</body>
+</html>

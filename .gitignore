@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Env / secrets
+.env
+.env.local
+.vercel/
+
+# Build / output
+out/
+evals/results/*.json
+
+# OS
+.DS_Store
