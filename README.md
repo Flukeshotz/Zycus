@@ -4,7 +4,7 @@ An AI agent system that drafts a Mutual NDA from a template and business inputs 
 it's confident about, and flags anything missing, ambiguous, or non-standard for a human to
 decide. Built for the Zycus Product Intern (AI PM Track) take-home, Track A.
 
-**Live URL:** _pending Phase 5 deploy_
+**Live URL:** https://zycus-blond.vercel.app (walking skeleton — full pipeline lands in Phase 4/5)
 
 ## What it does
 

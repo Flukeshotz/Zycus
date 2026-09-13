@@ -27,7 +27,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 | Phase | Name | Planned (build clock) | Actual start | Actual end | Gate | Notes |
 |---|---|---|---|---|---|---|
-| P0 | Repo, Groq spike, Vercel walking skeleton | 0:00–0:15 | 17:35 IST | 17:45 IST | ☑ | 10/10 spike checks passed on first run; local skeleton verified; Vercel deploy pending user confirmation |
+| P0 | Repo, Groq spike, Vercel walking skeleton | 0:00–0:15 | 17:35 IST | 17:52 IST | ☑ | 10/10 spike checks passed; live at https://zycus-blond.vercel.app; /api/health confirmed correct IST date + keys configured |
 | P1 | Knowledge assets, data contracts, scenarios | 0:15–0:30 | | | ☐ | |
 | P2 | Deterministic core + offline pipeline | 0:30–1:00 | | | ☐ | |
 | P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | | | ☐ | |
