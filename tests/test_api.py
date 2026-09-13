@@ -289,9 +289,16 @@ class TestSigning:
         from core.models import RunResult
         from core.signing import sign, verify
 
+        from core.models import Readiness
+
         res = client.post("/api/run", json={"inputs": SAMPLE_INPUTS})
         rr = RunResult(**res.json()["run_result"])
         sig = sign(rr)
-        # Modify a field
-        tampered = rr.model_copy(update={"readiness": "READY_FOR_SIGNATURE_REVIEW"})
+        # Modify a field — a real Readiness enum member, not a raw string
+        # (model_copy skips validation, so a bare string would "work" but
+        # trip a Pydantic serializer warning on every test run; D-71).
+        different = (
+            Readiness.BLOCKED if rr.readiness != Readiness.BLOCKED else Readiness.NEEDS_REVIEW
+        )
+        tampered = rr.model_copy(update={"readiness": different})
         assert not verify(tampered, sig)

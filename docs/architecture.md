@@ -360,7 +360,7 @@ injection_patterns: ["ignore (all|any|previous) instructions", "system prompt", 
 | Clause Analyst: B decision | 1 × strict `json_schema`, **no tools** | `openai/gpt-oss-120b` | `reasoning_effort="medium"`, `include_reasoning=False`, `temperature=0.3`, `max_completion_tokens=2000` | `ClauseAssessment` | Cited rules must be in evidence; library match → exact library text (D-51) |
 | Verifier stage 2 | 1 × strict `json_schema` | `qwen/qwen3.8-27b` | `reasoning_effort="low"`, `reasoning_format="hidden"`, `temperature=0.2`, `max_completion_tokens=1500` | `VerificationResult` | Quotes checked in code; unknown safeguard IDs rejected |
 | Prompt Guard *(stretch)* | Classifier call | `meta-llama/llama-prompt-guard-2-86m` | — | score → INFO | Never changes status (D-68) |
-| Fallback *(conditional stretch)* | Same structured call via Gemini OpenAI-compatible endpoint (`openai` SDK, `base_url=https://generativelanguage.googleapis.com/v1beta/openai/`) | `gemini-3.5-flash` (`MODEL_FALLBACK`) | Same schema; once, only after Groq 429/5xx/timeout | Same model output | Never on 400/schema errors; not inside the tool loop; trace `served_by`; `ENABLE_FALLBACK` (D-69) |
+| Fallback *(auto-enabled when configured)* | Same structured call via Gemini OpenAI-compatible endpoint (`openai` SDK, `base_url=https://generativelanguage.googleapis.com/v1beta/openai/`) | `gemini-3.5-flash` (`MODEL_FALLBACK`) | Same schema; once, only after Groq 429/5xx/timeout | Same model output | Never on 400/schema errors; not inside the tool loop; trace `served_by`; auto-enabled whenever `GEMINI_API_KEY` is set, opt out with `DISABLE_FALLBACK=true` (D-69, D-70) |
 
 **Client:** `Groq(api_key=GROQ_API_KEY, timeout=20.0, max_retries=2)`; calls go through `client.chat.completions.with_raw_response.create(...)` so the trace can record `x-ratelimit-remaining-tokens`. Exceptions `RateLimitError`, `APITimeoutError`, `APIConnectionError`, `APIStatusError`, plus Pydantic `ValidationError`, all map to `AIUnavailable(reason)` → G7. Model IDs come from env (`MODEL_NORMALIZER`, `MODEL_ANALYST`, `MODEL_VERIFIER`).
 
@@ -485,7 +485,7 @@ Errors: `422` validation (length caps, bad enums) · `400` signature invalid · 
 
 | Failure | Detection | Behaviour | Decision |
 |---|---|---|---|
-| Groq 429 (TPM/RPM) | `RateLimitError` after 2 retries | If `ENABLE_FALLBACK`: retry the structured call once on Gemini (INFO: served by fallback). Otherwise, or if that fails too: affected fields → `NEEDS_REVIEW` "AI rate limit reached"; deterministic fallback; banner | D-60, D-69, D-13 |
+| Groq 429 (TPM/RPM) | `RateLimitError` after 2 retries | If the fallback is enabled (default on with a Gemini key, D-70): retry the structured call once on Gemini (INFO: served by fallback). Otherwise, or if that fails too: affected fields → `NEEDS_REVIEW` "AI rate limit reached"; deterministic fallback; banner. Never covers the research tool loop — a rate limit there always routes to G7 (D-58's auto-retrieval only covers a *skipped* tool call, not a *failed* one) | D-60, D-69, D-70, D-13 |
 | Groq timeout / 5xx / network | SDK exceptions | Same as above | D-13 |
 | Strict schema rejected / invalid JSON | 400 / `ValidationError` | Same as above; raw output in trace | D-57 |
 | Model never calls tools | No `tool_calls` after 2 turns | Auto-retrieve evidence; trace marks it | D-58 |
@@ -583,9 +583,9 @@ Errors: `422` validation (length caps, bad enums) · `400` signature invalid · 
 | `MODEL_VERIFIER` | `qwen/qwen3.8-27b` | D-56 |
 | `PARALLEL` | `true` | D-31 |
 | `LLM_MODE` | `live` | `fake` for tests and offline evals (D-46) |
-| `GEMINI_API_KEY` | *(rotated key, optional)* | Only used if `ENABLE_FALLBACK=true` (D-69) |
+| `GEMINI_API_KEY` | *(rotated key, optional)* | Fallback auto-enables when this is set; unset it or set `DISABLE_FALLBACK=true` to keep it off (D-69, D-70) |
 | `MODEL_FALLBACK` | `gemini-3.5-flash` | D-69 |
-| `ENABLE_FALLBACK` | `false` | Turn on only if the D-69 build condition is met |
+| `DISABLE_FALLBACK` | `false` | Force the fallback off even with `GEMINI_API_KEY` set (D-70) |
 | `SERVE_STATIC` | `true` **locally only** | Mounts `public/` for `uvicorn`; never on Vercel |
 
 **Pre-interview checklist:** hit `/api/health` 10 minutes before (cold start + date) · run S01 and one edge case · confirm the .docx opens · check Groq console usage/limits · keep the local `uvicorn` + ngrok fallback ready.

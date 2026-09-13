@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zycus Contract Authoring Agent — Presentation Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0c1017;
+      --bg-surface: #131924;
+      --bg-card: #182030;
+      --border-subtle: #232d42;
+      --border-accent: #3b82f6;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-green: #22c55e;
+      --accent-yellow: #eab308;
+      --accent-red: #ef4444;
+      --accent-purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+    .logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .badge {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .deck-nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .btn-nav {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .btn-nav:hover:not(:disabled) {
+      background: var(--border-subtle);
+      border-color: var(--accent-blue);
+    }
+    .btn-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+    .slide-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1100px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 2.5rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      animation: fadeIn 0.25s ease-out;
+    }
+    .slide.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+    .subtitle {
+      color: var(--accent-blue);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 1.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.25rem;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .card h3 {
+      font-size: 1.05rem;
+      margin-bottom: 0.5rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card p, .card li {
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: var(--text-secondary);
+    }
+    .card ul { margin-left: 1.25rem; margin-top: 0.5rem; }
+    .stat-val {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent-green);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.25rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 1rem;
+    }
+    th, td {
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border-subtle);
+      text-align: left;
+    }
+    th {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    td { color: var(--text-secondary); }
+    .screenshot-frame {
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+      background: #000;
+    }
+    .screenshot-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .code-block {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      background: #090d14;
+      padding: 1rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      overflow-x: auto;
+      color: #38bdf8;
+      line-height: 1.45;
+    }
+    footer {
+      padding: 0.75rem 2rem;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span>Zycus Contract Authoring Agent</span>
+      <span class="badge">Track A · AI PM Track</span>
+    </div>
+    <div class="deck-nav">
+      <button class="btn-nav" id="btn-prev" onclick="prevSlide()">← Previous</button>
+      <span class="slide-counter" id="slide-num">Slide 1 of 6</span>
+      <button class="btn-nav" id="btn-next" onclick="nextSlide()">Next →</button>
+      <a href="/index.html" class="btn-nav" style="text-decoration:none; margin-left:1rem;">Open App ↗</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Slide 1 -->
+    <div class="slide active" id="slide-1">
+      <div class="subtitle">Slide 1 · Executive Summary</div>
+      <h1>Autonomous Contract Drafting with Strict Guardrails</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+        Drafting enterprise Mutual NDAs from raw business inputs — filling what is standard and routing risk-shifting terms to human legal counsel.
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 1.5rem;">
+        <div class="card">
+          <div class="stat-val">3 / 3</div>
+          <div class="stat-label">Planted Traps Defeated</div>
+          <p style="margin-top:0.5rem;">Affiliate carve-out, payment terms, and relative dates handled deterministically.</p>
+        </div>
+        <div class="card">
+          <div class="stat-val">14 / 14</div>
+          <div class="stat-label">Live Evaluation Pass Rate</div>
+          <p style="margin-top:0.5rem;">100% green against live Groq models with zero flakiness across repeat runs.</p>
+        </div>
+        <div class="card">
+          <div class="stat-val">6.8s</div>
+          <div class="stat-label">Live Pipeline Latency</div>
+          <p style="margin-top:0.5rem;">Multi-model parallel execution with sub-50ms zero-token reviewer re-renders.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>How 3 Planted Traps Were Handled:</h3>
+        <ul style="margin-top: 0.4rem;">
+          <li><strong>C1 (Clause Conflict)</strong>: Detected non-standard affiliate carve-out (§4 vs §5 conflict) → matched library fallback → routed to <code>NEEDS_REVIEW</code>.</li>
+          <li><strong>C2 (Wrong Template)</strong>: Payment terms supplied on an NDA detected as prohibited → omitted from contract → flagged as commercial term signal.</li>
+          <li><strong>C3 (Relative Dates)</strong>: "Use today's date" derived in <code>Asia/Kolkata</code> timezone → rendered as long-form "13 September 2026" without placeholder leaks.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="slide" id="slide-2">
+      <div class="subtitle">Slide 2 · Architecture & Stack</div>
+      <h1>"Code for Correctness, LLM for Judgment"</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1.25rem;">
+        Rules, templates, and QA gates decide document safety. The LLM only interprets inputs and searches clause libraries.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <div class="code-block">
+Browser UI (HTML/CSS/JS)
+  │ POST /api/run
+FastAPI on Vercel Functions (Serverless)
+  │
+  ├── 1. Intake: Template Store & YAML Rulebook
+  ├── 2. Normalizer: Groq gpt-oss-20b (Strict JSON)
+  ├── 3. Clause Analyst: Groq gpt-oss-120b (Tool Loop)
+  ├── 4. Verifier: Groq qwen3.8-27b (Safeguards)
+  │    └── Standby Fallback: gemini-3.5-flash
+  ├── 5. Confidence Router: Gates G1–G11
+  ├── 6. Assembler: python-docx + HTML Preview
+  └── 7. QA Gate: Q1–Q8 Invariant Checks
+  │
+Sealed HMAC-SHA256 Signed Envelope
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+          <div class="card">
+            <h3>⚡ Multi-Model Groq Cascade</h3>
+            <p>Allocates models across separate rate-limit buckets: <code>20b</code> for fast intake normalization, <code>120b</code> for complex clause research, and <code>qwen 27b</code> for independent verification.</p>
+          </div>
+          <div class="card">
+            <h3>🔄 Automated Gemini Fallback</h3>
+            <p>If Groq encounters 429 rate limit pressure, calls automatically retry once on Google <code>gemini-3.5-flash</code> via OpenAI-compatible endpoint with zero service interruption.</p>
+          </div>
+          <div class="card">
+            <h3>🔒 Zero-Token Stateless Review</h3>
+            <p>Reviewer actions are sealed in HMAC-SHA256 envelopes. Reviewer overrides re-render in <code>POST /api/render</code> with zero new LLM calls and sub-50ms turnaround.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="slide" id="slide-3">
+      <div class="subtitle">Slide 3 · Live Product Experience</div>
+      <h1>Human-in-the-Loop Contract Authoring</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1rem;">
+        Production interface deployed live at <a href="https://zycus-blond.vercel.app" target="_blank" style="color:var(--accent-blue);">https://zycus-blond.vercel.app</a>.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>① Review Tab & HITL</h3>
+          <p>Displays risk level, matched clause, and 4 one-click reviewer actions.</p>
+          <div class="screenshot-frame">
+            <img src="screenshots/s01_review_tab.png" alt="Review Tab" />
+          </div>
+        </div>
+        <div class="card">
+          <h3>② High-Contrast Draft</h3>
+          <p>Pixel-faithful contract preview with legible highlights and Word comment notes.</p>
+          <div class="screenshot-frame">
+            <img src="screenshots/s01_draft_preview.png" alt="Draft Preview" />
+          </div>
+        </div>
+        <div class="card">
+          <h3>③ Full Audit Trace</h3>
+          <p>Inspectable execution log tracking tokens, model allocation, and latencies.</p>
+          <div class="screenshot-frame">
+            <img src="screenshots/s01_agent_trace.png" alt="Agent Trace" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="slide" id="slide-4">
+      <div class="subtitle">Slide 4 · Engineering Resilience</div>
+      <h1>What Broke, How I Fixed It & AI Mistakes</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1.25rem;">
+        A transparent record of live debugging, failure triage, and autonomous coding corrections.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>🐛 Real Runtime Failures (DEBUG_LOG.md)</h3>
+          <ul>
+            <li><strong>Q8 Paragraph Ordering Mismatch</strong>: QA check failed on BLOCKED banner because <code>RenderedDoc.full_text</code> placed title before banner. Fixed by syncing order with <code>write_docx()</code>.</li>
+            <li><strong>Relative Date Raw Leakage</strong>: Live Normalizer model output returned empty string leaving resolution to caller. Fixed with deterministic date canonicalization in orchestrator.</li>
+            <li><strong>Groq Free-Tier Rate Limits</strong>: Rapid sequential live runs depleted 8K TPM quota. Fixed by implementing graduated token backoff in <code>evals/run.py</code>.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>🤖 Build-Time AI Mistakes (AI_MISTAKES.md)</h3>
+          <ul>
+            <li><strong>Omission of 4th HITL Action</strong>: Initial generation omitted "Edit text" and dropped <code>edited_text</code> during round-trips. Fixed by adding schema field and safeguard checks.</li>
+            <li><strong>Dark Mode Text Invisibility</strong>: Browser <code>&lt;mark&gt;</code> stylesheet applied black text inside highlights on dark theme. Fixed by explicitly defining <code>#fef08a</code> contrast color.</li>
+            <li><strong>Unwired Stretch Fallback</strong>: Gemini fallback was specified in D-69 but unwired in runtime until tested against live 429 errors.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 5 -->
+    <div class="slide" id="slide-5">
+      <div class="subtitle">Slide 5 · Product Boundary</div>
+      <h1>Flag vs. Act: Where the Agent Draws the Line</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1.25rem;">
+        Establishing unambiguous boundaries between autonomous agent actions and mandatory human decisions.
+      </p>
+
+      <div class="grid-2">
+        <div class="card" style="border-left: 4px solid var(--accent-green);">
+          <h3 style="color:var(--accent-green);">✅ When the Agent Acts Autonomously</h3>
+          <ul style="margin-top:0.5rem;">
+            <li><strong>Standard Duration Normalization</strong>: Converts "2 years from signing" into 24 months.</li>
+            <li><strong>Unambiguous Relative Dates</strong>: Computes "today" in server jurisdiction timezone (Asia/Kolkata).</li>
+            <li><strong>Omission of Irrelevant Commercial Terms</strong>: Excludes payment terms from NDAs to prevent invalid contracts.</li>
+            <li><strong>Pre-Approved Library Matching</strong>: Retrieves vetted corporate fallback language with verified safeguards.</li>
+          </ul>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--accent-red);">
+          <h3 style="color:var(--accent-red);">🛑 When the Agent MUST Flag for Human Review</h3>
+          <ul style="margin-top:0.5rem;">
+            <li><strong>Risk-Shifting Special Clauses (Gate G5)</strong>: Affiliate disclosures, carve-outs, liability alterations.</li>
+            <li><strong>Missing Required Invariants (Gate G1)</strong>: Missing governing law generates red <code>⟦MISSING⟧</code> marker and marks document <code>BLOCKED</code>.</li>
+            <li><strong>Unapproved Jurisdictions (Gate G6)</strong>: Non-standard legal forums (e.g. Singapore) require legal sign-off.</li>
+            <li><strong>Infrastructure Outages (Gate G7)</strong>: Degraded safe draft generated with standard positions; all unanalyzed items flagged.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="slide" id="slide-6">
+      <div class="subtitle">Slide 6 · Evaluation Matrix & Roadmap</div>
+      <h1>Evals, Limitations & Future Roadmap</h1>
+      <p style="color:var(--text-secondary); margin-bottom: 1rem;">
+        Comprehensive evaluation across 14 test scenarios with zero regressions.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Scenarios</th>
+            <th>Pass Rate</th>
+            <th>Core Value Verified</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Standard Baseline</strong></td>
+            <td>S01, S06, S11</td>
+            <td><span style="color:var(--accent-green); font-weight:600;">100% (3/3)</span></td>
+            <td>Standard durations, clean drafting, explicit dates</td>
+          </tr>
+          <tr>
+            <td><strong>Planted Traps</strong></td>
+            <td>S01, S05, S08</td>
+            <td><span style="color:var(--accent-green); font-weight:600;">100% (3/3)</span></td>
+            <td>Affiliate carve-out, payment terms omitted, prompt injection neutralized</td>
+          </tr>
+          <tr>
+            <td><strong>Missing & Ambiguous</strong></td>
+            <td>S02, S04, S09, S10</td>
+            <td><span style="color:var(--accent-green); font-weight:600;">100% (4/4)</span></td>
+            <td>Missing law blocked, conditional term flagged, party validation</td>
+          </tr>
+          <tr>
+            <td><strong>Boundary Limits</strong></td>
+            <td>S03, S12, S13</td>
+            <td><span style="color:var(--accent-green); font-weight:600;">100% (3/3)</span></td>
+            <td>10-year term, perpetual survival, non-approved jurisdiction</td>
+          </tr>
+          <tr>
+            <td><strong>Infrastructure Resilience</strong></td>
+            <td>S14</td>
+            <td><span style="color:var(--accent-green); font-weight:600;">100% (1/1)</span></td>
+            <td>Degraded safe draft on AI outage without blank document leakage</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid-2" style="margin-top: 1.25rem;">
+        <div class="card">
+          <h3>Current Limitations</h3>
+          <p>Groq free-tier requires eval pacing; current templates focus on Mutual NDAs; illustrative rulebook positions.</p>
+        </div>
+        <div class="card">
+          <h3>Future Roadmap</h3>
+          <p>Visual redline diff viewer, multi-template enterprise CLM support (MSAs/SOWs), and direct ERP/CRM webhook integration.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>Built for Zycus Product Intern Take-Home (AI PM Track) · Track A</span>
+    <span>Use Left/Right arrow keys or navigation buttons to present</span>
+  </footer>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 6;
+
+    function showSlide(n) {
+      document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+      const active = document.getElementById('slide-' + n);
+      if (active) active.classList.add('active');
+      document.getElementById('slide-num').textContent = `Slide ${n} of ${totalSlides}`;
+      document.getElementById('btn-prev').disabled = (n === 1);
+      document.getElementById('btn-next').disabled = (n === totalSlides);
+      currentSlide = n;
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) showSlide(currentSlide - 1);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) showSlide(currentSlide + 1);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') nextSlide();
+      else if (e.key === 'ArrowLeft') prevSlide();
+    });
+
+    showSlide(1);
+  </script>
+</body>
+</html>

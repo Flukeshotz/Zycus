@@ -78,7 +78,7 @@ flowchart TD
 | **Intake Normalizer** | Groq | `openai/gpt-oss-20b` | Structured field parsing (e.g. "2 yrs from signing" → 24 months, "use today's date" → derived) via strict JSON schema. Fast and token-efficient. |
 | **Clause Analyst** | Groq | `openai/gpt-oss-120b` | Two-phase assessment: Phase A conducts an agentic tool loop (max 6 calls) over rulebook and clause library; Phase B renders strict structured decision. |
 | **Verifier** | Groq | `qwen/qwen3.8-27b` | Adversarial second-opinion verification validating that proposed texts contain mandatory safeguards (e.g., recipient liability, need-to-know restrictions). |
-| **Standby Fallback** | Google / OpenAI compat | `gemini-3.5-flash` | Conditional fallback activated only if Groq encounters sustained 429 quota exhaustion (D-69). |
+| **Standby Fallback** | Google / OpenAI compat | `gemini-3.5-flash` | Auto-enabled whenever `GEMINI_API_KEY` is configured; retries a structured call once after a Groq 429/5xx/timeout. Never covers the Clause Analyst's research tool loop. Opt out with `DISABLE_FALLBACK=true` (D-69, D-70). |
 
 ---
 
@@ -105,7 +105,7 @@ Live evaluations executed across all 14 test scenarios on Groq models with dynam
 | **S11** | Effective date given explicitly, not derived | No | `NEEDS_REVIEW` | `NEEDS_REVIEW` | ✅ PASS | 54.1s | 1,496 tokens |
 | **S12** | Survival period stated as perpetual | No | `NEEDS_REVIEW` | `NEEDS_REVIEW` | ✅ PASS | 76.7s | 1,490 tokens |
 | **S13** | Governing law not on the approved list (Singapore) | No | `NEEDS_REVIEW` | `NEEDS_REVIEW` | ✅ PASS | 1.0s | 1,438 tokens |
-| **S14** | AI unavailable — safe degraded draft | **Yes** | `NEEDS_REVIEW` | `NEEDS_REVIEW` | ✅ PASS | 0.0s | 0 tokens (fallback) |
+| **S14** | AI unavailable — safe degraded draft | **Yes** | `NEEDS_REVIEW` | `NEEDS_REVIEW` | ✅ PASS | 0.0s | 0 tokens (`simulate_ai_failure` short-circuits before any API call — the deterministic degraded path, D-13, not the Gemini fallback) |
 
 ---
 
@@ -124,7 +124,7 @@ Configure these in `.env` locally (copied from `.env.example`) or in Vercel Proj
 - `LLM_MODE` — Execution mode (`live` for Groq API, `fake` for offline testing).
 - `SERVE_STATIC` — Serve `public/` directory via FastAPI locally (`true`/`false`).
 - `GEMINI_API_KEY` — Optional Gemini API key for cross-provider fallback.
-- `ENABLE_FALLBACK` — Enable Gemini fallback on Groq rate limits (`true`/`false`).
+- `DISABLE_FALLBACK` — Force-disable the Gemini fallback even when `GEMINI_API_KEY` is set (`true`/`false`, default off). Auto-enabled whenever a Gemini key is configured (D-70).
 - `FORCE_AI_FAILURE` — Force fallback degraded path for outage demonstrations (`true`/`false`).
 
 ---
@@ -174,8 +174,9 @@ Share the generated `https://<id>.ngrok-free.app` URL as the live demonstration 
 
 ## Documentation Links
 
+- [docs/deck.md](docs/deck.md): Slide deck (6 slides covering problem, architecture, screenshots, debugging, flag-vs-act, roadmap) — interactive deck at [https://zycus-blond.vercel.app/deck.html](https://zycus-blond.vercel.app/deck.html).
 - [docs/architecture.md](docs/architecture.md): Complete architecture specification, component boundaries, and gate order.
-- [docs/decision.md](docs/decision.md): Complete record of architectural decisions (D-01 to D-69) and spike results.
+- [docs/decision.md](docs/decision.md): Complete record of architectural decisions (D-01 to D-72) and spike results.
 - [docs/implementation.md](docs/implementation.md): Phase-by-phase implementation tracker and exit gates.
 - [docs/DEBUG_LOG.md](docs/DEBUG_LOG.md): Running diary of real runtime bugs hit during build and how they were fixed.
 - [docs/AI_MISTAKES.md](docs/AI_MISTAKES.md): Build-time AI coding mistakes caught and corrected.

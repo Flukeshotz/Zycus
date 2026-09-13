@@ -381,7 +381,14 @@ async function sendRenderAction(field, action, edited_text = null) {
     }
     if (res.status === 422) {
       const err = await res.json().catch(() => ({}));
-      showError('Validation error: ' + (err.detail || 'field too long (max 2,000 characters)'));
+      // FastAPI's own Pydantic validation errors return detail as a list of
+      // {msg, loc, ...}; the one hand-raised HTTPException in /api/render
+      // returns a plain string. Handle both so a real validation error
+      // never renders as "[object Object]" (D-71).
+      const detailMsg = Array.isArray(err.detail)
+        ? (err.detail[0]?.msg || JSON.stringify(err.detail))
+        : (err.detail || 'field too long (max 2,000 characters)');
+      showError('Validation error: ' + detailMsg);
       return;
     }
     if (!res.ok) {
@@ -412,7 +419,7 @@ function renderTraceTab(rr) {
   const trace = rr.trace || [];
 
   let html = '<button class="btn-trace-download" id="btn-trace-json">Download trace JSON</button>';
-  html += `<table class="trace-table">
+  html += `<div class="table-scroll"><table class="trace-table">
     <thead><tr><th>Step</th><th>Kind</th><th>Status</th><th>Time</th><th>Model</th><th>Tokens</th><th>Details</th></tr></thead>
     <tbody>`;
 
@@ -445,7 +452,7 @@ function renderTraceTab(rr) {
       </td>
     </tr>`;
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
 
   // Tokens per model summary
   const tokensByModel = {};
@@ -477,7 +484,7 @@ function renderTraceTab(rr) {
 // --- Field Table Tab ---------------------------------------------------------
 function renderFieldTable(rr) {
   const container = $('#field-table-content');
-  let html = `<table class="field-table">
+  let html = `<div class="table-scroll"><table class="field-table">
     <thead><tr><th>Field</th><th>Raw Value</th><th>Value for Document</th><th>Status</th><th>Gate</th><th>Reason</th></tr></thead>
     <tbody>`;
   for (const d of rr.decisions) {
@@ -490,7 +497,7 @@ function renderFieldTable(rr) {
       <td style="font-size:0.75rem;color:var(--text-secondary)">${escHtml(d.reason)}</td>
     </tr>`;
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   container.innerHTML = html;
 }
 

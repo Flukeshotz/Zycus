@@ -79,6 +79,24 @@ body {
   color: var(--text-muted);
   margin-left: 0.75rem;
 }
+.btn-deck-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.btn-deck-link:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: var(--accent-blue);
+}
 
 .app-layout {
   display: grid;
@@ -575,8 +593,15 @@ body {
 }
 
 /* --- Agent Trace --------------------------------------------- */
+/* Wide tables scroll within their own box, never the page body (D-71). */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .trace-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
@@ -690,6 +715,7 @@ body {
 /* --- Field Table --------------------------------------------- */
 .field-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.8rem;
 }

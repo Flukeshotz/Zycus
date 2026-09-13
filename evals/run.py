@@ -12,11 +12,18 @@ Pacing & repeat support (P6, D-60):
 - --repeat N: runs the suite N times sequentially to detect flaky responses.
 - Generates evals/results/latest.md with a detailed markdown table.
 
+Reproducibility (D-69/D-70): the Gemini fallback auto-enables whenever
+GEMINI_API_KEY is configured, which would otherwise make live results not
+purely attributable to Groq. --live here forces DISABLE_FALLBACK=true unless
+--allow-fallback is passed, and every scenario's served_by (if any request
+was served by the fallback) is recorded and shown in the report.
+
 Usage:
     python -m evals.run --offline
     python -m evals.run --offline --only S01,S05
     python -m evals.run --live --only S01,S02,S05,S06,S08,S14 --repeat 2 --pace
     python -m evals.run --live --pace
+    python -m evals.run --live --allow-fallback --pace   # permit Gemini fallback during the run
 """
 from __future__ import annotations
 
@@ -45,6 +52,7 @@ class ScenarioOutcome:
     duration_s: float
     tokens_by_model: dict[str, int] = field(default_factory=dict)
     remaining_rate_limit_tokens: str | None = None
+    served_by: list[str] = field(default_factory=list)  # e.g. ["gemini-fallback"] if it fired (D-70)
 
 
 def _extract_text(docx_bytes: bytes) -> str:
@@ -133,9 +141,10 @@ def evaluate_scenario(
                     f"clause_source[{mode}]: expected {expected_source}, got {actual_source}"
                 )
 
-    # Collect token usage and remaining tokens
+    # Collect token usage, remaining tokens, and any fallback usage (D-70)
     tokens_by_model: dict[str, int] = {}
     remaining_tokens: str | None = None
+    served_by: list[str] = []
     for step in result.trace:
         if step.model and step.total_tokens:
             tokens_by_model[step.model] = (
@@ -143,6 +152,8 @@ def evaluate_scenario(
             )
         if step.remaining_rate_limit_tokens:
             remaining_tokens = step.remaining_rate_limit_tokens
+        if step.served_by:
+            served_by.append(step.served_by)
 
     return ScenarioOutcome(
         scenario=scenario,
@@ -152,6 +163,7 @@ def evaluate_scenario(
         duration_s=duration,
         tokens_by_model=tokens_by_model,
         remaining_rate_limit_tokens=remaining_tokens,
+        served_by=served_by,
     )
 
 
@@ -161,17 +173,35 @@ def write_markdown_report(
     repeat_count: int,
     out_path: Path,
     tz_str: str,
+    fallback_allowed: bool = False,
 ) -> None:
     now_str = datetime.now(ZoneInfo(tz_str)).strftime("%Y-%m-%d %H:%M:%S %Z")
     total = len(outcomes)
     passed_count = sum(1 for o in outcomes if o.passed)
     must_pass_total = sum(1 for o in outcomes if o.scenario.must_pass)
     must_pass_passed = sum(1 for o in outcomes if o.scenario.must_pass and o.passed)
+    any_fallback_used = any(o.served_by for o in outcomes)
 
     total_tokens_by_model: dict[str, int] = {}
     for o in outcomes:
         for m, count in o.tokens_by_model.items():
             total_tokens_by_model[m] = total_tokens_by_model.get(m, 0) + count
+
+    # Reproducibility note (D-70): the fallback is normally forced off for
+    # eval runs so "100% pass" is attributable to Groq alone, not a mix.
+    if mode == "offline":
+        fallback_note = "N/A — offline mode uses FakeLLM; no Groq or Gemini calls are made."
+    elif fallback_allowed:
+        fallback_note = (
+            "⚠️ `--allow-fallback` was set — some requests may have been served by Gemini, "
+            "not pure Groq (see the `served_by` column below)."
+        )
+    else:
+        fallback_note = (
+            "Fallback was forced off for this run (`DISABLE_FALLBACK=true`) — every result below "
+            "reflects Groq alone, unless `served_by` still shows a hit from a request made before "
+            "the process-level override (should not happen; flagged if it does)."
+        )
 
     lines: list[str] = [
         "# Scenario Evaluation Report",
@@ -181,10 +211,18 @@ def write_markdown_report(
         f"- **Repeats**: {repeat_count}",
         f"- **Overall Pass Rate**: {passed_count}/{total} ({passed_count/total*100:.1f}%)",
         f"- **Must-Pass Pass Rate**: {must_pass_passed}/{must_pass_total} ({must_pass_passed/must_pass_total*100:.1f}%)",
+        f"- **Fallback reproducibility**: {fallback_note}",
+    ]
+    if any_fallback_used:
+        lines.append(
+            f"- **⚠️ Fallback actually fired** on: "
+            + ", ".join(o.scenario.id for o in outcomes if o.served_by)
+        )
+    lines.extend([
         "",
         "## Token Usage by Model",
         "",
-    ]
+    ])
 
     if total_tokens_by_model:
         lines.append("| Model | Total Tokens |")
@@ -198,8 +236,8 @@ def write_markdown_report(
         "",
         "## Scenario Results",
         "",
-        "| ID | Title | Must-Pass | Expected | Actual | Result | Latency | Tokens | Details |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| ID | Title | Must-Pass | Expected | Actual | Result | Latency | Tokens | Served By | Details |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ])
 
     for o in outcomes:
@@ -210,9 +248,10 @@ def write_markdown_report(
             if o.tokens_by_model
             else "—"
         )
+        served_by_str = ", ".join(o.served_by) if o.served_by else ("groq" if mode == "live" else "—")
         problems_str = "; ".join(o.problems) if o.problems else "—"
         lines.append(
-            f"| {o.scenario.id} | {o.scenario.title} | {must} | `{o.scenario.expected.readiness}` | `{o.actual_readiness}` | {mark} | {o.duration_s:.1f}s | {tokens_str} | {problems_str} |"
+            f"| {o.scenario.id} | {o.scenario.title} | {must} | `{o.scenario.expected.readiness}` | `{o.actual_readiness}` | {mark} | {o.duration_s:.1f}s | {tokens_str} | {served_by_str} | {problems_str} |"
         )
 
     lines.append("")
@@ -240,6 +279,10 @@ def main() -> int:
     parser.add_argument(
         "--out", default="evals/results/latest.md", help="Output markdown report path"
     )
+    parser.add_argument(
+        "--allow-fallback", action="store_true", default=False,
+        help="Permit the Gemini fallback during this run (default: forced off for reproducibility, D-70).",
+    )
     args = parser.parse_args()
 
     mode = "live" if args.live else "offline"
@@ -249,12 +292,25 @@ def main() -> int:
         scenarios = [s for s in scenarios if s.id in wanted]
 
     if mode == "live":
+        # Reproducibility (D-69/D-70): the fallback auto-enables whenever
+        # GEMINI_API_KEY is set. Force it off for eval runs unless the
+        # caller explicitly opts in, so "100% pass" is attributable to Groq
+        # alone by default. Must happen before get_settings() is first
+        # called anywhere in this process (it's @lru_cache'd).
+        import os
+
+        if not args.allow_fallback:
+            os.environ["DISABLE_FALLBACK"] = "true"
+
         from core.config import get_settings
         from core.llm import GroqLLM
 
-        if not get_settings().groq_key_configured:
+        settings = get_settings()
+        if not settings.groq_key_configured:
             print("--live requires GROQ_API_KEY to be set (see .env).")
             return 2
+        if settings.enable_fallback:
+            print("NOTE: --allow-fallback is set — Gemini may serve some requests this run.\n")
         llm = GroqLLM()
     else:
         llm = None
@@ -330,6 +386,7 @@ def main() -> int:
         repeat_count=args.repeat,
         out_path=Path(args.out),
         tz_str=args.tz,
+        fallback_allowed=args.allow_fallback,
     )
 
     total = len(final_outcomes)
@@ -337,8 +394,14 @@ def main() -> int:
     must_pass_failures = [
         o.scenario.id for o in final_outcomes if o.scenario.must_pass and not o.passed
     ]
+    unexpected_fallback = (
+        [o.scenario.id for o in final_outcomes if o.served_by]
+        if mode == "live" and not args.allow_fallback else []
+    )
 
     print(f"\n{passed_count}/{total} scenarios passed in final run.")
+    if unexpected_fallback:
+        print(f"UNEXPECTED FALLBACK USE (DISABLE_FALLBACK should have prevented this): {', '.join(unexpected_fallback)}")
     if must_pass_failures:
         print(f"MUST-PASS FAILURES: {', '.join(must_pass_failures)}")
     elif flaky_scenarios:

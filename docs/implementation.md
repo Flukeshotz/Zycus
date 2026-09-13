@@ -34,7 +34,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | 19:00 IST | 20:47 IST | ☑ | 22/22 API tests green; 214/214 suite green; all 4 HITL actions verified; HMAC signed envelope; 0 LLM calls on render; .docx download opens; browser session verified |
 | P5 | Vercel production deploy + live smoke test | 2:05–2:20 | 20:49 IST | 20:54 IST | ☑ | Deployed to https://zycus-blond.vercel.app; live smoke test passed: /api/health (IST date, keys configured), S01 live (Groq gpt-oss-20b + 120b + 4 tools, 19 paragraphs docx), HITL accept_proposed (0 new LLM calls), S02 blocked (MISSING marker), simulated outage; vercel.json bundle fix logged in DEBUG_LOG |
 | P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | 20:58 IST | 21:18 IST | ☑ | Live must-pass scenarios 6/6 passed ×2 repeats with zero flakiness; full live suite passed 14/14 (100.0%) with dynamic rate-limit pacing; evals/results/latest.md generated; smart backoff logged in DEBUG_LOG |
-| P7 | Deliverables: README, screenshots, deck, submit | 2:45–3:00 | | | ☐ | |
+| P7 | Deliverables: README, screenshots, deck, submit | 2:45–3:00 | 22:00 IST | 22:15 IST | ☑ | README.md complete with 14/14 evals; real UI screenshots in docs/screenshots/ & public/screenshots/; 6-slide deck in docs/deck.md and interactive /deck.html; Gemini fallback validated live; git tag v1.0 |
 | P8 | Pre-interview readiness | *outside build clock* | | | ☐ | |
 
 ```mermaid
@@ -79,7 +79,7 @@ gantt
   | `RUN_SIGNING_SECRET` | 64 hex chars | same value |
   | `APP_TIMEZONE` | `Asia/Kolkata` | `Asia/Kolkata` |
   | `MODEL_NORMALIZER` / `MODEL_ANALYST` / `MODEL_VERIFIER` | `openai/gpt-oss-20b` / `openai/gpt-oss-120b` / `qwen/qwen3.8-27b` | same |
-  | `MODEL_FALLBACK` / `ENABLE_FALLBACK` | `gemini-3.5-flash` / `false` | same |
+  | `MODEL_FALLBACK` / `DISABLE_FALLBACK` | `gemini-3.5-flash` / `false` | same — fallback auto-enables whenever `GEMINI_API_KEY` is set (D-70) |
   | `PARALLEL` | `true` | `true` |
   | `LLM_MODE` | `live` (tests use `fake`) | `live` |
   | `SERVE_STATIC` | `true` | **not set** |
@@ -558,7 +558,7 @@ Write tests/test_api.py first with LLM_MODE=fake.
 | 6.2 | Full live suite ×1 | `python -m evals.run --live --pace` → `evals/results/latest.md` (scenario, expected, actual, pass, latency, tokens per model), committed for the deck |
 | 6.3 | Triage | Classify failures: **data/rule** · **prompt** · **router** · **renderer/QA** · **flaky** (→ gate, D-59) · **rate-limited** (→ D-60) |
 | 6.4 | Fix top failure | Must-pass first; log in DEBUG_LOG with trace evidence; re-run affected scenarios offline, then live for that scenario only |
-| 6.5 | **Stretch 1: Gemini fallback** *(only if the D-69 build condition is met)* | `core/gemini_llm.py` via `openai` SDK + Gemini base URL; wraps structured calls only; `ENABLE_FALLBACK`; trace `served_by`; test with `FORCE_GROQ_RATE_LIMIT` in FakeLLM-style unit test; add `openai` to requirements |
+| 6.5 | **Stretch 1: Gemini fallback** *(D-69 build condition was met — real near-exhaustion in P6 live pacing)* | Implemented in `core/llm.py::_call_gemini_fallback` (not a separate `core/gemini_llm.py`) via `openai` SDK + Gemini base URL; wraps structured calls only, never the research tool loop; auto-enabled via `GEMINI_API_KEY` presence, `DISABLE_FALLBACK` opts out (D-70); trace `served_by`; `scripts/verify_gemini_live.py` exercises it live |
 | 6.6 | **Stretch 2: LLM Verifier stage 2** (D-53) | `qwen/qwen3.8-27b` strict call → `VerificationResult`; code checks every `evidence_quote` literally appears (normalize whitespace/quotes); runs for `ai_drafted`, `edited`, and library text |
 | 6.7 | **Stretch 3: Word comments** | Only if S-6 ✅; inline notes stay as fallback |
 | 6.8 | **Stretch 4: Prompt Guard** (D-68) | Only if S-9 ✅; INFO note only |
@@ -601,9 +601,9 @@ judgment into a deterministic gate instead.
 | 7.5 | Final commit | Tag `v1.0`; fill in the §0 tracker actual times |
 
 ### Exit gate ✅
-- [ ] README has the live link and eval results
-- [ ] Deck ≤ 6 slides covering the 4 required items with real screenshots
-- [ ] Submission sent; tag `v1.0`
+- [x] README has the live link and eval results
+- [x] Deck ≤ 6 slides covering the 4 required items with real screenshots
+- [x] Submission sent; tag `v1.0`
 
 ---
 
