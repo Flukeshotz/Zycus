@@ -1,0 +1,82 @@
+# NDA standard-position rulebook (architecture.md §7.2, D-03).
+#
+# Illustrative standard positions authored for this evaluation — Zycus did
+# not supply a playbook for Track A (context.md Gap G1). Not legal advice.
+
+version: 1
+
+our_entities: ["Zycus Inc."]
+
+entity_designators:
+  - "Inc."
+  - "LLC"
+  - "Ltd."
+  - "Pvt. Ltd."
+  - "Private Limited"
+  - "Corp."
+  - "GmbH"
+  - "LLP"
+  - "S.A."
+  - "PLC"
+
+rules:
+  - id: NDA-TERM-01
+    field: term
+    standard_months: [12, 36]
+    review_above_months: 36  # 37-60 -> NEEDS_REVIEW (medium); >60 or perpetual -> NEEDS_REVIEW (high)
+
+  - id: NDA-SURV-01
+    field: survival_period
+    standard_months: [24, 60]
+    review_if: [below_min, above_max, perpetual]
+    info_if_longer_than_term: true
+
+  - id: NDA-LAW-01
+    field: governing_law
+    approved:
+      - "Delaware, USA"
+      - "New York, USA"
+      - "California, USA"
+      - "England and Wales"
+      - "India"
+
+  - id: NDA-DISC-01
+    topic: disclosure_to_third_parties
+    standard_recipients: [employees, officers, professional_advisors]
+    any_expansion: needs_review
+    required_safeguards:
+      - affiliate_defined
+      - need_to_know
+      - equivalent_obligations
+      - receiving_party_liable
+
+not_applicable_for:
+  mutual_nda:
+    - payment_terms
+    - contract_value
+    - indemnification_cap
+    - liability_cap
+
+# Dormant: not evaluated for mutual_nda (matches the brief's generic Track A
+# examples — payment terms out of range, missing indemnification cap — kept
+# here so the rulebook is ready to extend to a commercial template).
+dormant_commercial_rules:
+  - id: COM-PAY-01
+    field: payment_terms
+    standard: "Net 30 - Net 60"
+  - id: COM-IND-01
+    field: indemnification_cap
+    required: true
+
+info_rules:
+  - id: NDA-INFO-MUTUAL
+    note: "Mutual NDA uses one-way Disclosing/Receiving labels"
+  - id: NDA-INFO-PROTECT
+    note: "Template lacks standard exclusions and return/destruction clause"
+  - id: NDA-INFO-SIGN
+    note: "Signature block has no signatory names/titles"
+
+injection_patterns:
+  - "ignore (all|any|previous) instructions"
+  - "system prompt"
+  - "mark (this|it) as standard"

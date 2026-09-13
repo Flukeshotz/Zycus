@@ -1,0 +1,41 @@
+{
+  "id": "S11",
+  "title": "Effective date given explicitly, not derived",
+  "must_pass": false,
+  "simulate_ai_failure": false,
+  "inputs": {
+    "contract_type": "mutual_nda",
+    "disclosing_party": "Zycus Inc.",
+    "receiving_party": "Northwind Vendor Solutions Pvt. Ltd.",
+    "effective_date": "1 October 2026",
+    "term": "2 years from effective date",
+    "governing_law": "State of Delaware, USA",
+    "survival_period": "3 years after termination",
+    "purpose": "Evaluating a potential vendor relationship for procurement software integration",
+    "special_clause": "Receiving party wants a carve-out allowing disclosure to their affiliates without prior written consent",
+    "payment_terms": "Not applicable \u2014 this is an NDA, not a commercial agreement",
+    "contract_value": ""
+  },
+  "expected": {
+    "readiness": "NEEDS_REVIEW",
+    "fields": {
+      "effective_date": "AUTO_FILLED",
+      "disclosing_party": "AUTO_FILLED",
+      "receiving_party": "AUTO_FILLED",
+      "purpose": "AUTO_FILLED",
+      "term": "AUTO_FILLED",
+      "survival_period": "AUTO_FILLED",
+      "governing_law": "AUTO_FILLED",
+      "special_clause": "NEEDS_REVIEW",
+      "payment_terms": "NOT_APPLICABLE",
+      "contract_value": "NOT_APPLICABLE"
+    },
+    "qa_pass": true,
+    "text_contains": [
+      "1 October 2026"
+    ],
+    "gate": {
+      "effective_date": "G11_default"
+    }
+  }
+}

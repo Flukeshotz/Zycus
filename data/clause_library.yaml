@@ -1,0 +1,21 @@
+# Approved clause library (architecture.md §7.3, D-11).
+#
+# Only text stored here is ever inserted into a document verbatim (D-51) —
+# the Clause Analyst may draft its own language for an unmatched request,
+# but that text is always labeled ai_drafted and never library.
+
+- id: affiliate_disclosure
+  keywords: [affiliate, affiliates, group companies, parent, subsidiary]
+  satisfies: [affiliate_defined, need_to_know, equivalent_obligations, receiving_party_liable]
+  text: >-
+    Notwithstanding the foregoing, and in addition to the persons permitted
+    under Section 5, the Receiving Party may disclose Confidential
+    Information to its Affiliates without prior written consent, provided
+    that (a) each such Affiliate has a need to know such information for the
+    Purpose; (b) each such Affiliate is bound by written confidentiality
+    obligations no less protective than those in this Agreement; and (c) the
+    Receiving Party remains liable for any breach of this Agreement by its
+    Affiliates. "Affiliate" means any entity that directly or indirectly
+    controls, is controlled by, or is under common control with the
+    Receiving Party, where "control" means ownership of more than fifty
+    percent (50%) of its voting securities.

@@ -1,0 +1,39 @@
+{
+  "id": "S10",
+  "title": "Both parties identical, and neither is a Zycus entity",
+  "must_pass": false,
+  "simulate_ai_failure": false,
+  "inputs": {
+    "contract_type": "mutual_nda",
+    "disclosing_party": "Acme Corp.",
+    "receiving_party": "Acme Corp.",
+    "effective_date": "To be filled \u2014 use today's date",
+    "term": "2 years from effective date",
+    "governing_law": "State of Delaware, USA",
+    "survival_period": "3 years after termination",
+    "purpose": "Evaluating a potential vendor relationship for procurement software integration",
+    "special_clause": "Receiving party wants a carve-out allowing disclosure to their affiliates without prior written consent",
+    "payment_terms": "Not applicable \u2014 this is an NDA, not a commercial agreement",
+    "contract_value": ""
+  },
+  "expected": {
+    "readiness": "BLOCKED",
+    "fields": {
+      "effective_date": "AUTO_FILLED_WITH_ASSUMPTION",
+      "disclosing_party": "BLOCKED_MISSING",
+      "receiving_party": "BLOCKED_MISSING",
+      "purpose": "AUTO_FILLED",
+      "term": "AUTO_FILLED",
+      "survival_period": "AUTO_FILLED",
+      "governing_law": "AUTO_FILLED",
+      "special_clause": "NEEDS_REVIEW",
+      "payment_terms": "NOT_APPLICABLE",
+      "contract_value": "NOT_APPLICABLE"
+    },
+    "qa_pass": true,
+    "gate": {
+      "disclosing_party": "G2_identity_conflict",
+      "receiving_party": "G2_identity_conflict"
+    }
+  }
+}

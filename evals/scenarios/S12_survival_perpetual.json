@@ -1,0 +1,38 @@
+{
+  "id": "S12",
+  "title": "Survival period stated as perpetual",
+  "must_pass": false,
+  "simulate_ai_failure": false,
+  "inputs": {
+    "contract_type": "mutual_nda",
+    "disclosing_party": "Zycus Inc.",
+    "receiving_party": "Northwind Vendor Solutions Pvt. Ltd.",
+    "effective_date": "To be filled \u2014 use today's date",
+    "term": "2 years from effective date",
+    "governing_law": "State of Delaware, USA",
+    "survival_period": "perpetual",
+    "purpose": "Evaluating a potential vendor relationship for procurement software integration",
+    "special_clause": "Receiving party wants a carve-out allowing disclosure to their affiliates without prior written consent",
+    "payment_terms": "Not applicable \u2014 this is an NDA, not a commercial agreement",
+    "contract_value": ""
+  },
+  "expected": {
+    "readiness": "NEEDS_REVIEW",
+    "fields": {
+      "effective_date": "AUTO_FILLED_WITH_ASSUMPTION",
+      "disclosing_party": "AUTO_FILLED",
+      "receiving_party": "AUTO_FILLED",
+      "purpose": "AUTO_FILLED",
+      "term": "AUTO_FILLED",
+      "survival_period": "NEEDS_REVIEW",
+      "governing_law": "AUTO_FILLED",
+      "special_clause": "NEEDS_REVIEW",
+      "payment_terms": "NOT_APPLICABLE",
+      "contract_value": "NOT_APPLICABLE"
+    },
+    "qa_pass": true,
+    "gate": {
+      "survival_period": "G6_rule_violation"
+    }
+  }
+}

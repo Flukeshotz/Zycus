@@ -1,0 +1,91 @@
+# Mutual NDA template (architecture.md §7.1).
+#
+# section_text below is copied VERBATIM from docs/context.md §2.4 — the sample
+# contract-authoring pack Zycus provided. Do not paraphrase, "improve", or
+# reformat this text; the QA gate's Q5 check compares rendered non-slot text
+# against this file byte-for-byte (after whitespace normalization).
+
+id: mutual_nda
+title: MUTUAL NON-DISCLOSURE AGREEMENT
+
+placeholders:
+  EFFECTIVE DATE:
+    field: effective_date
+    required: true
+    sections: [preamble]
+  DISCLOSING PARTY:
+    field: disclosing_party
+    required: true
+    sections: [preamble]
+  RECEIVING PARTY:
+    field: receiving_party
+    required: true
+    sections: [preamble]
+  PURPOSE OF DISCLOSURE:
+    field: purpose
+    required: true
+    sections: ["1"]
+  TERM:
+    field: term
+    required: true
+    sections: ["3"]
+  SURVIVAL PERIOD:
+    field: survival_period
+    required: true
+    sections: ["3"]
+  SPECIAL CLAUSE, IF ANY:
+    field: special_clause
+    required: false
+    sections: ["4"]
+  GOVERNING LAW:
+    field: governing_law
+    required: true
+    sections: ["6"]
+
+sections: [preamble, "1", "2", "3", "4", "5", "6", "7"]
+
+# Verbatim section text (context.md §2.4). [PLACEHOLDER] tokens are replaced
+# by the Assembler at render time; everything else must reach the .docx
+# unchanged (QA Q5).
+section_text:
+  preamble: >-
+    This Mutual Non-Disclosure Agreement ("Agreement") is entered into as of
+    [EFFECTIVE DATE], by and between [DISCLOSING PARTY], and [RECEIVING PARTY]
+    (each a "Party" and collectively the "Parties").
+
+  "1": >-
+    1. Purpose. The Parties wish to explore [PURPOSE OF DISCLOSURE] (the
+    "Purpose"), and in connection with the Purpose, each Party may disclose
+    certain confidential information to the other.
+
+  "2": >-
+    2. Confidential Information. "Confidential Information" means any
+    non-public information disclosed by one Party to the other, whether
+    orally or in writing, that is designated as confidential or that
+    reasonably should be understood to be confidential given the nature of
+    the information.
+
+  "3": >-
+    3. Term. This Agreement shall remain in effect for [TERM] from the
+    Effective Date. The obligations of confidentiality shall survive
+    termination for a period of [SURVIVAL PERIOD].
+
+  "4": >-
+    4. Restrictions on Use and Disclosure. The Receiving Party shall not
+    disclose Confidential Information to any third party without the prior
+    written consent of the Disclosing Party, except as expressly permitted
+    under Section 5. [SPECIAL CLAUSE, IF ANY]
+
+  "5": >-
+    5. Permitted Disclosures. Confidential Information may be disclosed to
+    the Receiving Party's employees, officers, and professional advisors who
+    need to know such information for the Purpose, provided they are bound
+    by confidentiality obligations no less protective than this Agreement.
+
+  "6": >-
+    6. Governing Law. This Agreement shall be governed by the laws of
+    [GOVERNING LAW], without regard to its conflict of law principles.
+
+  "7": >-
+    7. Signatures. IN WITNESS WHEREOF, the Parties have executed this
+    Agreement as of the Effective Date.

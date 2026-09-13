@@ -1,0 +1,42 @@
+{
+  "id": "S05",
+  "title": "Payment terms supplied on an NDA",
+  "must_pass": true,
+  "simulate_ai_failure": false,
+  "inputs": {
+    "contract_type": "mutual_nda",
+    "disclosing_party": "Zycus Inc.",
+    "receiving_party": "Northwind Vendor Solutions Pvt. Ltd.",
+    "effective_date": "To be filled \u2014 use today's date",
+    "term": "2 years from effective date",
+    "governing_law": "State of Delaware, USA",
+    "survival_period": "3 years after termination",
+    "purpose": "Evaluating a potential vendor relationship for procurement software integration",
+    "special_clause": "Receiving party wants a carve-out allowing disclosure to their affiliates without prior written consent",
+    "payment_terms": "Net 90",
+    "contract_value": ""
+  },
+  "expected": {
+    "readiness": "NEEDS_REVIEW",
+    "fields": {
+      "effective_date": "AUTO_FILLED_WITH_ASSUMPTION",
+      "disclosing_party": "AUTO_FILLED",
+      "receiving_party": "AUTO_FILLED",
+      "purpose": "AUTO_FILLED",
+      "term": "AUTO_FILLED",
+      "survival_period": "AUTO_FILLED",
+      "governing_law": "AUTO_FILLED",
+      "special_clause": "NEEDS_REVIEW",
+      "payment_terms": "NEEDS_REVIEW",
+      "contract_value": "NOT_APPLICABLE"
+    },
+    "qa_pass": true,
+    "text_absent": [
+      "Net 90",
+      "payment"
+    ],
+    "gate": {
+      "payment_terms": "G4_wrong_template"
+    }
+  }
+}
