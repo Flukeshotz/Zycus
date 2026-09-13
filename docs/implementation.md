@@ -32,7 +32,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | P2 | Deterministic core + offline pipeline | 0:30–1:00 | 17:58 IST | 18:23 IST | ☑ | 157/157 unit tests green; 14/14 scenarios pass offline (all must-pass green); 2 real bugs found+fixed+logged (Q8 ordering, S14 gate assumption); CLI writes out/*.docx, verified via python-docx (highlights, comment part, full text all correct) |
 | P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | 18:24 IST | 18:55 IST | ☑ | 192/192 tests green; live S01, S04, S07, S08, S14 all pass; 3 real live bugs logged in DEBUG_LOG (effective_date derived resolution, term canonical text, G8 confidence definitions); latency 5.8s, tokens well within budget |
 | P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | 19:00 IST | 20:47 IST | ☑ | 22/22 API tests green; 214/214 suite green; all 4 HITL actions verified; HMAC signed envelope; 0 LLM calls on render; .docx download opens; browser session verified |
-| P5 | Vercel production deploy + live smoke test | 2:05–2:20 | | | ☐ | |
+| P5 | Vercel production deploy + live smoke test | 2:05–2:20 | 20:49 IST | 20:54 IST | ☑ | Deployed to https://zycus-blond.vercel.app; live smoke test passed: /api/health (IST date, keys configured), S01 live (Groq gpt-oss-20b + 120b + 4 tools, 19 paragraphs docx), HITL accept_proposed (0 new LLM calls), S02 blocked (MISSING marker), simulated outage; vercel.json bundle fix logged in DEBUG_LOG |
 | P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | | | ☐ | |
 | P7 | Deliverables: README, screenshots, deck, submit | 2:45–3:00 | | | ☐ | |
 | P8 | Pre-interview readiness | *outside build clock* | | | ☐ | |
@@ -538,9 +538,9 @@ Write tests/test_api.py first with LLM_MODE=fake.
 | 5.6 | Log any deploy issue in DEBUG_LOG (deploy bugs make good debugging stories) |
 
 ### Exit gate ✅
-- [ ] Production URL runs S01 end-to-end with correct statuses and a downloadable .docx
-- [ ] IST date correct; `/api/health` exposes no secrets; `git log -p | grep -E "gsk_|AQ\."` returns nothing
-- [ ] Commit + tag `p5-done`
+- [x] Production URL runs S01 end-to-end with correct statuses and a downloadable .docx
+- [x] IST date correct; `/api/health` exposes no secrets; `git log -p | grep -E "gsk_|AQ\."` returns nothing
+- [x] Commit + tag `p5-done`
 
 **If it breaks:** build error → D-64 (pins/Python) · 500 on import → Vercel logs, D-61 · 401 → D-65 · 504 → D-61 (trace timings; Groq waits) · static 404 → `public/` at root + redirect route.
 

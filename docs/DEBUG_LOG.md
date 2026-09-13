@@ -171,3 +171,14 @@ offline) and "the document reads correctly" (only checkable against a real model
 - **Prevention:** `tests/test_api.py::TestRenderAction::test_edit_text_without_safeguards_shows_warning_and_records_decision` tests the `edit` route directly.
 - **Time lost:** ~2 minutes.
 
+
+## Phase 5
+
+### Finding / Deploy Bug: `vercel.json` excludeFiles stripped `evals/scenarios/**`
+- **Symptom:** On the Vercel deployment, `GET /api/scenarios` initially returned an empty list `[]`, causing the "Try a scenario" dropdown on the frontend to display no presets.
+- **Hypothesis:** `vercel.json`'s `excludeFiles` glob pattern included `evals/scenarios/**`, stripping the JSON scenario definition files from the serverless function bundle.
+- **Evidence:** Comparing `vercel.json` against `docs/architecture.md` §10 showed that `evals/results/**` was meant to be excluded, but `evals/scenarios/**` was accidentally added to `excludeFiles`. Locally, the directory existed, but on Vercel lambda filesystem, `Path("evals/scenarios").glob("S*.json")` yielded 0 matches.
+- **Fix:** Updated `excludeFiles` in `vercel.json` to `{tests/**,docs/**,scripts/**,evals/results/**}` so `evals/scenarios/` is bundled with `app.py`.
+- **Prevention:** Phase 5 live smoke test script explicitly verifies `requests.get(BASE_URL + "/api/scenarios").json()` contains all 14 scenarios and checks `len(scenarios) >= 14`.
+- **Time lost:** ~3 minutes.
+
