@@ -31,7 +31,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | P1 | Knowledge assets, data contracts, scenarios | 0:15–0:30 | 17:53 IST | 18:05 IST | ☑ | Template verbatim-diff clean (8 placeholders/8 sections); rulebook + library load; 14/14 scenarios validate (must-pass: S01,S02,S05,S06,S08,S14); 23/23 tests green on first run |
 | P2 | Deterministic core + offline pipeline | 0:30–1:00 | 17:58 IST | 18:23 IST | ☑ | 157/157 unit tests green; 14/14 scenarios pass offline (all must-pass green); 2 real bugs found+fixed+logged (Q8 ordering, S14 gate assumption); CLI writes out/*.docx, verified via python-docx (highlights, comment part, full text all correct) |
 | P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | 18:24 IST | 18:55 IST | ☑ | 192/192 tests green; live S01, S04, S07, S08, S14 all pass; 3 real live bugs logged in DEBUG_LOG (effective_date derived resolution, term canonical text, G8 confidence definitions); latency 5.8s, tokens well within budget |
-| P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | | | ☐ | |
+| P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | 19:00 IST | 20:47 IST | ☑ | 22/22 API tests green; 214/214 suite green; all 4 HITL actions verified; HMAC signed envelope; 0 LLM calls on render; .docx download opens; browser session verified |
 | P5 | Vercel production deploy + live smoke test | 2:05–2:20 | | | ☐ | |
 | P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | | | ☐ | |
 | P7 | Deliverables: README, screenshots, deck, submit | 2:45–3:00 | | | ☐ | |
@@ -513,10 +513,10 @@ Write tests/test_api.py first with LLM_MODE=fake.
 6. Browser devtools console: no JS errors; Network: `/api/render` responses fast (< 1 s).
 
 ### Exit gate ✅
-- [ ] `tests/test_api.py` green; steps 1–6 pass
-- [ ] HITL clicks don't call the LLM (test + trace evidence)
-- [ ] Download works and the file opens
-- [ ] Commit + tag `p4-done`
+- [x] `tests/test_api.py` green; steps 1–6 pass
+- [x] HITL clicks don't call the LLM (test + trace evidence)
+- [x] Download works and the file opens
+- [x] Commit + tag `p4-done`
 
 **If it breaks:** render always 400 → D-63 canonical JSON · LLM called on render → D-12/D-63 · preview ≠ docx → D-52 (Q8) · static 404 locally → `SERVE_STATIC=true`.
 

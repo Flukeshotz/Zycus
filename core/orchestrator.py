@@ -35,6 +35,7 @@ from core.models import (
     QAReport,
     Readiness,
     ReviewerAction,
+    ReviewerActionType,
     RuleFinding,
     RunResult,
     TraceStepKind,
@@ -136,7 +137,23 @@ def rerender(run_result: RunResult, reviewer_actions: list[ReviewerAction]) -> R
     decisions = [d.model_copy() for d in run_result.decisions]
     for d in decisions:
         if d.field in actions_by_field:
-            d.reviewer_action = actions_by_field[d.field].action
+            action_item = actions_by_field[d.field]
+            d.reviewer_action = action_item.action
+            if action_item.edited_text is not None:
+                d.edited_text = action_item.edited_text
+            if action_item.action == ReviewerActionType.EDIT:
+                text = (action_item.edited_text or "").lower()
+                safeguard_checks = {
+                    "affiliate_defined": "affiliate" in text,
+                    "need_to_know": "need to know" in text or "need-to-know" in text,
+                    "equivalent_obligations": any(w in text for w in ["equivalent", "bound", "obligation"]),
+                    "receiving_party_liable": any(w in text for w in ["liable", "liability", "responsible"]),
+                }
+                missing = [sg.replace("_", "-") for sg, ok in safeguard_checks.items() if not ok]
+                if missing:
+                    warning = f"Warning: edited text lacks required safeguard(s): {', '.join(missing)} (human decision stands)"
+                    existing = [n for n in d.info_notes if not n.startswith("Warning: edited text lacks")]
+                    d.info_notes = existing + [warning]
 
     overall_readiness = compute_readiness(decisions)
 
@@ -165,7 +182,7 @@ def render_docx(run_result: RunResult, reviewer_actions: list[ReviewerAction] | 
     template = template_store.get_template(run_result.inputs.contract_type)
     if reviewer_actions is None:
         reviewer_actions = [
-            ReviewerAction(field=d.field, action=d.reviewer_action)
+            ReviewerAction(field=d.field, action=d.reviewer_action, edited_text=d.edited_text)
             for d in run_result.decisions if d.reviewer_action is not None
         ]
     _, docx_bytes, _ = _render_and_qa(

@@ -183,6 +183,7 @@ class FieldDecision(BaseModel):
     reason: str
     info_notes: list[str] = Field(default_factory=list)
     reviewer_action: ReviewerActionType | None = None
+    edited_text: str | None = None
 
 
 # ---------------------------------------------------------------------------

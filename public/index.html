@@ -3,59 +3,160 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="AI-powered Mutual NDA drafting with explicit uncertainty handling, deterministic rules, and human-in-the-loop review." />
 <title>Zycus Contract Authoring Agent</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 640px; margin: 4rem auto; padding: 0 1.5rem;
-    background: #0b0d10; color: #e6e8eb;
-  }
-  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-  .subtitle { color: #9aa4b2; margin-bottom: 2rem; }
-  .card {
-    border: 1px solid #2a2f36; border-radius: 10px; padding: 1.25rem;
-    background: #14171c;
-  }
-  .row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #1f242b; font-size: 0.9rem; }
-  .row:last-child { border-bottom: none; }
-  .label { color: #9aa4b2; }
-  .ok { color: #4ade80; }
-  .bad { color: #f87171; }
-  .pending { color: #fbbf24; font-size: 0.85rem; margin-top: 1.5rem; }
-  code { background: #1f242b; padding: 0.1rem 0.4rem; border-radius: 4px; }
-</style>
+<link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <h1>Zycus Contract Authoring Agent</h1>
-  <div class="subtitle">Mutual NDA drafting with explicit uncertainty handling — Phase 0 walking skeleton</div>
-  <div class="card" id="status">Loading /api/health…</div>
-  <div class="pending">Full pipeline (Review · Draft · Agent Trace tabs) arrives in Phase 4.</div>
 
-  <script>
-    async function loadHealth() {
-      const el = document.getElementById('status');
-      try {
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        const row = (label, value, cls = '') =>
-          `<div class="row"><span class="label">${label}</span><span class="${cls}">${value}</span></div>`;
-        el.innerHTML =
-          row('Status', data.status, data.status === 'ok' ? 'ok' : 'bad') +
-          row('Server date (' + data.timezone + ')', data.today_long_form) +
-          row('Groq key configured', data.groq_key_configured, data.groq_key_configured ? 'ok' : 'bad') +
-          row('Gemini key configured', data.gemini_key_configured, data.gemini_key_configured ? 'ok' : 'bad') +
-          row('Fallback enabled', data.fallback_enabled) +
-          row('Normalizer model', '<code>' + data.models.normalizer + '</code>') +
-          row('Analyst model', '<code>' + data.models.analyst + '</code>') +
-          row('Verifier model', '<code>' + data.models.verifier + '</code>') +
-          row('LLM mode', data.llm_mode) +
-          row('Phase', data.phase);
-      } catch (err) {
-        el.innerHTML = '<span class="bad">Failed to reach /api/health: ' + err + '</span>';
-      }
-    }
-    loadHealth();
-  </script>
+<!-- ===== Header ===== -->
+<header class="app-header">
+  <div style="display:flex;align-items:center">
+    <h1>Zycus Contract Agent</h1>
+    <span class="subtitle">Mutual NDA Drafting</span>
+  </div>
+</header>
+
+<!-- ===== Main Layout ===== -->
+<div class="app-layout">
+
+  <!-- ===== Left Panel ===== -->
+  <aside class="left-panel">
+    <h2>Contract Setup</h2>
+
+    <div class="field-group">
+      <label for="contract-type">Contract type</label>
+      <select id="contract-type" disabled>
+        <option value="mutual_nda" selected>Mutual NDA</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label for="scenario-select">Try a scenario</label>
+      <select id="scenario-select">
+        <option value="">— custom —</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label for="input-disclosing-party">Disclosing Party</label>
+      <input id="input-disclosing-party" type="text" placeholder="e.g. Zycus Inc." />
+    </div>
+    <div class="field-group">
+      <label for="input-receiving-party">Receiving Party</label>
+      <input id="input-receiving-party" type="text" placeholder="e.g. Northwind Pvt. Ltd." />
+    </div>
+    <div class="field-group">
+      <label for="input-effective-date">Effective Date</label>
+      <input id="input-effective-date" type="text" placeholder="e.g. use today's date" />
+    </div>
+    <div class="field-group">
+      <label for="input-term">Term</label>
+      <input id="input-term" type="text" placeholder="e.g. 2 years from effective date" />
+    </div>
+    <div class="field-group">
+      <label for="input-governing-law">Governing Law</label>
+      <input id="input-governing-law" type="text" placeholder="e.g. State of Delaware, USA" />
+    </div>
+    <div class="field-group">
+      <label for="input-survival-period">Survival Period</label>
+      <input id="input-survival-period" type="text" placeholder="e.g. 3 years after termination" />
+    </div>
+    <div class="field-group">
+      <label for="input-purpose">Purpose</label>
+      <input id="input-purpose" type="text" placeholder="e.g. Evaluating a vendor relationship" />
+    </div>
+    <div class="field-group">
+      <label for="input-special-clause">Special Clause</label>
+      <textarea id="input-special-clause" rows="2" placeholder="e.g. carve-out for affiliate disclosure"></textarea>
+    </div>
+    <div class="field-group">
+      <label for="input-payment-terms">Payment Terms</label>
+      <input id="input-payment-terms" type="text" placeholder="e.g. Not applicable" />
+    </div>
+    <div class="field-group">
+      <label for="input-contract-value">Contract Value</label>
+      <input id="input-contract-value" type="text" placeholder="" />
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="sim-ai-failure" />
+      Simulate AI outage (demo)
+    </label>
+
+    <button class="btn-generate" id="btn-generate">Generate draft</button>
+  </aside>
+
+  <!-- ===== Main Panel ===== -->
+  <main class="main-panel">
+    <!-- Banner -->
+    <div class="banner" id="banner" style="display:none"></div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="review">Review</button>
+      <button class="tab-btn" data-tab="draft">Draft</button>
+      <button class="tab-btn" data-tab="trace">Agent Trace</button>
+      <button class="tab-btn" data-tab="field-table">Field Table</button>
+      <button class="tab-btn" data-tab="rules">Rules</button>
+    </div>
+
+    <!-- Tab Panes -->
+    <div class="tab-content">
+      <div class="tab-pane active" id="tab-review">
+        <div id="review-content">
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <p>Select a scenario and generate a draft to review decisions</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-draft">
+        <div id="draft-content">
+          <div class="empty-state">
+            <div class="icon">📄</div>
+            <p>Generate a draft to preview the document</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-trace">
+        <div id="trace-content">
+          <div class="empty-state">
+            <div class="icon">🔍</div>
+            <p>Generate a draft to see the agent trace</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-field-table">
+        <div id="field-table-content">
+          <div class="empty-state">
+            <div class="icon">📊</div>
+            <p>Generate a draft to see the field table</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="tab-rules">
+        <div id="rules-content">
+          <div class="empty-state">
+            <div class="icon">📜</div>
+            <p>Loading rulebook…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      Drafts for human review — not legal advice. Sample data is simplified and non-binding.
+    </footer>
+  </main>
+
+</div>
+
+<script src="/app.js"></script>
 </body>
 </html>

@@ -160,3 +160,14 @@ offline) and "the document reads correctly" (only checkable against a real model
   override; live evals (`S01,S04,S07,S08` and `S14`) all 100% green.
 - **Time lost:** ~15 minutes.
 
+
+## Phase 4
+
+### Bug: NameError on ReviewerActionType in `core/orchestrator.py`
+- **Symptom:** `POST /api/render` returned HTTP 500 when called with `action="edit"`.
+- **Hypothesis:** `ReviewerActionType` enum was referenced in `rerender()` without being imported.
+- **Evidence:** Server log in `task-6991.log` reported `NameError: name 'ReviewerActionType' is not defined. Did you mean: 'ReviewerAction'?`.
+- **Fix:** Added `ReviewerActionType` to the `core.models` import in `core/orchestrator.py`.
+- **Prevention:** `tests/test_api.py::TestRenderAction::test_edit_text_without_safeguards_shows_warning_and_records_decision` tests the `edit` route directly.
+- **Time lost:** ~2 minutes.
+
