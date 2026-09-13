@@ -29,7 +29,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 |---|---|---|---|---|---|---|
 | P0 | Repo, Groq spike, Vercel walking skeleton | 0:00–0:15 | 17:35 IST | 17:52 IST | ☑ | 10/10 spike checks passed; live at https://zycus-blond.vercel.app; /api/health confirmed correct IST date + keys configured |
 | P1 | Knowledge assets, data contracts, scenarios | 0:15–0:30 | 17:53 IST | 18:05 IST | ☑ | Template verbatim-diff clean (8 placeholders/8 sections); rulebook + library load; 14/14 scenarios validate (must-pass: S01,S02,S05,S06,S08,S14); 23/23 tests green on first run |
-| P2 | Deterministic core + offline pipeline | 0:30–1:00 | | | ☐ | |
+| P2 | Deterministic core + offline pipeline | 0:30–1:00 | 17:58 IST | 18:23 IST | ☑ | 157/157 unit tests green; 14/14 scenarios pass offline (all must-pass green); 2 real bugs found+fixed+logged (Q8 ordering, S14 gate assumption); CLI writes out/*.docx, verified via python-docx (highlights, comment part, full text all correct) |
 | P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | | | ☐ | |
 | P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | | | ☐ | |
 | P5 | Vercel production deploy + live smoke test | 2:05–2:20 | | | ☐ | |

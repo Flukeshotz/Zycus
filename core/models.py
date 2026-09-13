@@ -247,6 +247,10 @@ class RunResult(BaseModel):
     verification: VerificationResult | None = None
     qa: QAReport
     trace: list[TraceStep] = Field(default_factory=list)
+    # Static, document-level observations not tied to one input field (the
+    # "(document)" row in architecture §4, e.g. mutual/one-way labels,
+    # missing standard protections, signature block). Never block; INFO only.
+    document_notes: list[str] = Field(default_factory=list)
 
 
 class RunEnvelope(BaseModel):

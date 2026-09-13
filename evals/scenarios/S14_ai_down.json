@@ -35,7 +35,7 @@
       "special_clause": "AI"
     },
     "gate": {
-      "special_clause": "G7_ai_unavailable"
+      "special_clause": "G5_risk_shifting"
     }
   }
 }
