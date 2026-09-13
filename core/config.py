@@ -74,7 +74,7 @@ def get_settings() -> Settings:
         model_verifier=_str("MODEL_VERIFIER", "qwen/qwen3.8-27b"),
         model_fallback=_str("MODEL_FALLBACK", "gemini-3.5-flash"),
         parallel=_bool("PARALLEL", True),
-        enable_fallback=_bool("ENABLE_FALLBACK", True),
+        enable_fallback=bool(_str("GEMINI_API_KEY", "")) and not _bool("DISABLE_FALLBACK", False),
         llm_mode=_str("LLM_MODE", "live"),
         serve_static=_bool("SERVE_STATIC", False),
         force_ai_failure=_bool("FORCE_AI_FAILURE", False),
