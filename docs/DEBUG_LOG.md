@@ -68,3 +68,95 @@ This file is a demo asset (deck slide 4, D-40) — entries are written live, not
   possible — this is exactly why `evals/run.py` (task 2.10) prints *actual vs. expected*, not just
   pass/fail, so a mismatch like this is diagnosable at a glance rather than a mystery.
 - **Time lost:** ~10 minutes.
+
+
+## Phase 3
+
+### Bug: live effective_date leaked the raw "use today's date" instruction text into the document
+- **Symptom:** the very first live run against the real Groq API failed QA check Q2 ("today's date"
+  found in slot text), even though the exact same pipeline logic had passed 14/14 offline. The
+  rendered document read "...entered into as of **To be filled — use today's date**, by and
+  between...".
+- **Hypothesis:** `agents/normalizer.py`'s system prompt tells the model *"do not guess an actual
+  date; the caller resolves this"* for a DERIVED effective date — correct guidance, since only the
+  deterministic layer should decide what "today" means (D-15) — but nothing in the orchestrator
+  actually *was* "the caller" that resolves it. FakeLLM never exposed this gap because its
+  `_date_field()` always calls `tools/parser.py::parse_date()` directly and sets `normalized_value`
+  itself, regardless of interpretation — it never depends on an external resolution step existing.
+- **Evidence:** trace showed `normalize` step succeeded (`interpretation=DERIVED`), but
+  `FieldContext.value_for_document` for `effective_date` fell through to `raw_value` because
+  `normalized.normalized_value` was `None` — exactly what a *compliant* response to the prompt's own
+  instruction looks like.
+- **Fix:** added `core/orchestrator.py::_canonicalize_parsed_fields()`, called once after
+  `_understand()` returns (for both FakeLLM and GroqLLM): if `effective_date` is DERIVED and
+  `normalized_value` is still empty, resolve it via `format_long_date(now.date())` using the same
+  `now` the whole run is timestamped with.
+- **Prevention:** `tests/test_orchestrator.py::TestCanonicalizeParsedFields` reproduces the exact
+  fixture a compliant live response looks like (`normalized_value=None`, `interpretation=DERIVED`)
+  without needing a live API call, so this class of prompt/orchestrator mismatch can't regress
+  silently. `TestS01SampleEndToEnd` also now asserts the resolved value contains no "today" text.
+- **Time lost:** ~15 minutes (caught immediately by Q2 — the QA gate did exactly its job).
+
+### Bug: live term/survival_period showed the raw input phrase instead of a clean value
+- **Symptom:** on the *same* first live run, Section 3 read "...shall remain in effect for **2 years
+  from effective date** from the Effective Date..." — the model's raw input phrase, echoed verbatim,
+  producing an awkward, redundant sentence (not caught by QA, since none of "2 years from effective
+  date" matches Q2's forbidden-literal list — this one was caught by manually reading the rendered
+  document, not automatically).
+- **Hypothesis:** the Normalizer prompt asks for "a clean version of the value" in `normalized_value`,
+  but the live model returned the raw text unchanged for `term`/`survival_period`, while correctly
+  computing `duration_months` (24, 36) — so the *number* was right but the *display text* wasn't.
+  FakeLLM can't exhibit this either: its `_duration_field()` always formats `normalized_value` as
+  `f"{duration.months} months"` from the parser, never from raw text.
+- **Evidence:** live trace + a direct read of the rendered `.docx` (`python -c "import docx; ..."`)
+  showing the exact malformed sentence; `duration_months=24` was correct, `normalized_value="2 years
+  from effective date"` was not.
+- **Fix:** generalized the effective_date fix into `_canonicalize_parsed_fields()`: for `term` and
+  `survival_period`, whenever `tools/parser.py::parse_duration()` can parse the raw input, its
+  canonical formatting (`"<N> months"` or `"perpetual"`) always wins over whatever the model put in
+  `normalized_value` — the parser is now the single source of truth for how these fields *display*,
+  regardless of which LLMClient produced the surrounding NormalizedField. This does **not** touch
+  `duration_months` itself, so G9's live/parser cross-check is unaffected and still catches a genuine
+  disagreement on the *number*, independent of this display-text fix.
+- **Prevention:** `tests/test_orchestrator.py::TestCanonicalizeParsedFields` reproduces this exact bug
+  (`normalized_value` set to the raw phrase, `duration_months` correct) and asserts the canonical
+  value wins; also covers perpetual survival and an ambiguous term (must stay untouched, since the
+  parser can't parse it either). Re-ran live after the fix: QA passed, Section 3 reads "...for 24
+  months from the Effective Date. ...survive termination for a period of 36 months." — confirmed by
+  re-reading the actual generated `.docx`, not just trusting `qa.passed`.
+- **Time lost:** ~15 minutes (found by manually reading document output — a reminder that QA's
+  forbidden-literal scan (Q2) is not a substitute for actually reading a live-generated document at
+  least once per phase).
+
+**Both fixes share one lesson:** FakeLLM's correctness at 14/14 offline said nothing about whether a
+real, prompt-compliant model response would behave the same way — the two are different behaviors
+that happen to converge on the *same field statuses* while producing *different displayed text*. The
+first live run is what actually exercises the gap between "the router routes correctly" (proven
+offline) and "the document reads correctly" (only checkable against a real model).
+
+### Bug: intermittent effective_date failure via G8 ambiguity in live evals
+- **Symptom:** `evals.run --live --only S01,S04,S07,S08` failed on S01 (`effective_date: expected
+  status AUTO_FILLED_WITH_ASSUMPTION, got NEEDS_REVIEW`), even though single runs often passed.
+- **Hypothesis:** two interacting causes:
+  1. The live model sometimes returned a non-empty string in `normalized_value` (`"use today's date"`)
+     rather than `None`, which an earlier `not normalized_value` check treated as "already resolved"
+     and skipped.
+  2. The prompt in `agents/normalizer.py` lacked confidence definitions; in ~30% of calls, the model
+     rated `confidence: "medium"` (reason: *"Date is to be determined; requires current date"*),
+     conflating uncertainty in the classification with the fact that the date itself was derived.
+     Because gate `G8_ambiguity` checks `confidence in (MEDIUM, LOW)` and precedes `G10_assumption`,
+     medium confidence forced `NEEDS_REVIEW`.
+- **Evidence:** a 10-iteration live loop revealed 3/10 calls returned `conf=medium` with reasons
+  stating the date must be determined at execution.
+- **Fix:**
+  1. Made `effective_date` canonicalization in `core/orchestrator.py` unconditional for `DERIVED`
+     fields: the deterministic parser's resolved date always replaces whatever the model put in
+     `normalized_value`.
+  2. Added explicit confidence guidelines with examples to `agents/normalizer.py` (`SYSTEM` prompt),
+     clarifying that recognizing an explicit instruction like "use today's date" as `derived` is
+     high confidence.
+- **Prevention:** 10-iteration re-run verified 10/10 calls produced `interp=derived conf=high`;
+  regression tests in `tests/test_orchestrator.py::TestCanonicalizeParsedFields` enforce unconditional
+  override; live evals (`S01,S04,S07,S08` and `S14`) all 100% green.
+- **Time lost:** ~15 minutes.
+

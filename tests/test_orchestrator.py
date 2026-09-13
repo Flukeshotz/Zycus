@@ -12,8 +12,17 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from core.fake_llm import FakeLLM
-from core.models import BusinessInputs, FieldStatus, Readiness, ReviewerAction, ReviewerActionType
-from core.orchestrator import render_docx, rerender, run
+from core.models import (
+    BusinessInputs,
+    Confidence,
+    FieldStatus,
+    Interpretation,
+    NormalizedField,
+    Readiness,
+    ReviewerAction,
+    ReviewerActionType,
+)
+from core.orchestrator import _canonicalize_parsed_fields, render_docx, rerender, run
 
 SAMPLE_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_inputs.json"
 
@@ -49,6 +58,11 @@ class TestS01SampleEndToEnd:
         d = _decision(self.result, "effective_date")
         assert d.status == FieldStatus.AUTO_FILLED_WITH_ASSUMPTION
         assert d.gate == "G10_assumption"
+        # Regression (found live, P3): must be a resolved date, never the
+        # raw "use today's date" instruction text leaking into the document.
+        assert d.value_for_document is not None
+        assert "today" not in d.value_for_document.lower()
+        assert d.value_for_document[0].isdigit()
 
     def test_simple_fields_auto_filled(self):
         for field in ("disclosing_party", "receiving_party", "purpose", "term",
@@ -164,3 +178,117 @@ class TestRerenderNoLLMCall:
         updated = rerender(result, [action])
         docx_bytes = render_docx(updated, [action])
         assert docx_bytes[:2] == b"PK"
+
+
+class TestCanonicalizeParsedFields:
+    """
+    Regression tests for two live-only bugs found in P3's first live run —
+    neither reproducible offline, since FakeLLM already builds
+    normalized_value from the parser (it can't exhibit either failure mode).
+    """
+
+    def test_effective_date_fills_in_a_compliant_derived_response(self):
+        # The Normalizer's own system prompt correctly instructs it not to
+        # guess an actual date for a DERIVED effective_date — a compliant
+        # response therefore has normalized_value=None, exactly like this
+        # fixture. Before the fix, the raw "use today's date" instruction
+        # text leaked straight into the rendered document (caught by QA Q2).
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="To be filled — use today's date",
+                normalized_value=None, duration_months=None,
+                interpretation=Interpretation.DERIVED, confidence=Confidence.HIGH,
+                reason="Resolved 'today' to the caller.",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), _now(), "Asia/Kolkata")
+        result = normalized_by_field["effective_date"]
+        assert result.normalized_value is not None
+        assert "today" not in result.normalized_value.lower()
+
+    def test_derived_effective_date_always_overridden_even_when_non_empty(self):
+        # Regression within a regression: a live response was observed
+        # returning a non-empty but still-unresolved echo of the input
+        # ("use today's date") rather than null — the original fix's `not
+        # normalized_value` guard treated that as "already resolved" and
+        # skipped it, so G9 then flagged it as a parser mismatch. A DERIVED
+        # value must always be overridden, unconditionally.
+        now = _now()
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="use today's date",
+                normalized_value="use today's date", duration_months=None,
+                interpretation=Interpretation.DERIVED, confidence=Confidence.MEDIUM, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), now, "Asia/Kolkata")
+        result = normalized_by_field["effective_date"].normalized_value
+        assert result != "use today's date"
+        assert result[0].isdigit()
+
+    def test_derived_effective_date_with_a_wrong_guessed_date_is_still_overridden(self):
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="use today's date",
+                normalized_value="1 January 2030", duration_months=None,
+                interpretation=Interpretation.DERIVED, confidence=Confidence.HIGH, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), _now(), "Asia/Kolkata")
+        assert normalized_by_field["effective_date"].normalized_value != "1 January 2030"
+
+    def test_effective_date_does_not_touch_a_clear_explicit_date(self):
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="1 October 2026",
+                normalized_value="1 October 2026", duration_months=None,
+                interpretation=Interpretation.CLEAR, confidence=Confidence.HIGH, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), _now(), "Asia/Kolkata")
+        assert normalized_by_field["effective_date"].normalized_value == "1 October 2026"
+
+    def test_term_raw_phrase_echoed_by_model_is_replaced_with_canonical_value(self):
+        # The exact live bug: the model put the raw input phrase in
+        # normalized_value instead of a clean value, producing "...for 2
+        # years from effective date from the Effective Date..." in the
+        # rendered document.
+        inputs = _sample_inputs()  # term = "2 years from effective date"
+        normalized_by_field = {
+            "term": NormalizedField(
+                field="term", raw_value=inputs.term,
+                normalized_value="2 years from effective date",  # echoed raw text, the bug
+                duration_months=24, interpretation=Interpretation.CLEAR,
+                confidence=Confidence.HIGH, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, inputs, _now(), "Asia/Kolkata")
+        assert normalized_by_field["term"].normalized_value == "24 months"
+
+    def test_survival_perpetual_canonicalized(self):
+        inputs = _sample_inputs().model_copy(update={"survival_period": "perpetual"})
+        normalized_by_field = {
+            "survival_period": NormalizedField(
+                field="survival_period", raw_value="perpetual", normalized_value="perpetual",
+                duration_months=None, interpretation=Interpretation.CLEAR,
+                confidence=Confidence.HIGH, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, inputs, _now(), "Asia/Kolkata")
+        assert normalized_by_field["survival_period"].normalized_value == "perpetual"
+
+    def test_ambiguous_term_left_untouched(self):
+        inputs = _sample_inputs().model_copy(update={"term": "until the project is completed"})
+        normalized_by_field = {
+            "term": NormalizedField(
+                field="term", raw_value=inputs.term, normalized_value=None, duration_months=None,
+                interpretation=Interpretation.AMBIGUOUS, confidence=Confidence.LOW, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, inputs, _now(), "Asia/Kolkata")
+        assert normalized_by_field["term"].normalized_value is None  # parser also can't parse it
+
+    def test_missing_fields_are_a_no_op(self):
+        normalized_by_field: dict = {}
+        _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), _now(), "Asia/Kolkata")
+        assert normalized_by_field == {}

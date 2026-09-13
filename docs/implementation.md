@@ -30,7 +30,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | P0 | Repo, Groq spike, Vercel walking skeleton | 0:00–0:15 | 17:35 IST | 17:52 IST | ☑ | 10/10 spike checks passed; live at https://zycus-blond.vercel.app; /api/health confirmed correct IST date + keys configured |
 | P1 | Knowledge assets, data contracts, scenarios | 0:15–0:30 | 17:53 IST | 18:05 IST | ☑ | Template verbatim-diff clean (8 placeholders/8 sections); rulebook + library load; 14/14 scenarios validate (must-pass: S01,S02,S05,S06,S08,S14); 23/23 tests green on first run |
 | P2 | Deterministic core + offline pipeline | 0:30–1:00 | 17:58 IST | 18:23 IST | ☑ | 157/157 unit tests green; 14/14 scenarios pass offline (all must-pass green); 2 real bugs found+fixed+logged (Q8 ordering, S14 gate assumption); CLI writes out/*.docx, verified via python-docx (highlights, comment part, full text all correct) |
-| P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | | | ☐ | |
+| P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | 18:24 IST | 18:55 IST | ☑ | 192/192 tests green; live S01, S04, S07, S08, S14 all pass; 3 real live bugs logged in DEBUG_LOG (effective_date derived resolution, term canonical text, G8 confidence definitions); latency 5.8s, tokens well within budget |
 | P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | | | ☐ | |
 | P5 | Vercel production deploy + live smoke test | 2:05–2:20 | | | ☐ | |
 | P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | | | ☐ | |
@@ -455,12 +455,12 @@ python -m evals.run --live --only S14
 ```
 
 ### Exit gate ✅
-- [ ] Live S01 statuses == architecture §4; trace shows the Clause Analyst calling **`get_rules` and `search_clause_library`** (not auto-retrieved), then a strict decision
-- [ ] S04, S07, S08 pass live; S14 degraded run produces a QA-passing draft
-- [ ] Tokens per run within the architecture §8.3 targets (if not, apply the D-60 step list now)
-- [ ] End-to-end latency recorded (target ≤ ~20 s)
-- [ ] All P2 tests still green
-- [ ] Commit + tag `p3-done`
+- [x] Live S01 statuses == architecture §4; trace shows the Clause Analyst calling **`get_rules` and `search_clause_library`** (not auto-retrieved), then a strict decision
+- [x] S04, S07, S08 pass live; S14 degraded run produces a QA-passing draft
+- [x] Tokens per run within the architecture §8.3 targets (if not, apply the D-60 step list now)
+- [x] End-to-end latency recorded (target ≤ ~20 s)
+- [x] All P2 tests still green
+- [x] Commit + tag `p3-done`
 
 **If it breaks:** 400 schema → D-57 · model skips tools → D-58 · 429 → D-60 (or `PARALLEL=false`) · wrong model/param → D-56 · paraphrased library text → D-51.
 

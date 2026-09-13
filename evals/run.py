@@ -3,13 +3,15 @@ Scenario eval runner (architecture.md §13, D-39, D-49).
 
 Grades every scenario in evals/scenarios/ against its exact expected
 readiness, per-field status/gate, QA result, and document text — not "looks
-about right." P2 scope: --offline only (FakeLLM). --live is wired up for
-Phase 3+ but requires core/llm.py (GroqLLM), which doesn't exist yet.
+about right." --offline uses FakeLLM (free, no network); --live uses the
+real Groq API and needs GROQ_API_KEY set. Free-tier pacing across many
+scenarios is a P6 concern (D-60) — --only is how you stay within budget for
+now.
 
 Usage:
     python -m evals.run --offline
     python -m evals.run --offline --only S01,S05
-    python -m evals.run --live --only S01,S04,S07,S08   (Phase 3+)
+    python -m evals.run --live --only S01,S04,S07,S08
 """
 from __future__ import annotations
 
@@ -109,13 +111,13 @@ def main() -> int:
         scenarios = [s for s in scenarios if s.id in wanted]
 
     if mode == "live":
-        try:
-            from core.llm import GroqLLM  # not built until Phase 3
+        from core.config import get_settings
+        from core.llm import GroqLLM
 
-            llm = GroqLLM()
-        except ImportError:
-            print("--live requires core/llm.py (Phase 3) — not built yet.")
+        if not get_settings().groq_key_configured:
+            print("--live requires GROQ_API_KEY to be set (see .env).")
             return 2
+        llm = GroqLLM()
     else:
         llm = None  # per-scenario FakeLLM below, so simulate_ai_failure is honored per instance
 
