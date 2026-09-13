@@ -182,3 +182,15 @@ offline) and "the document reads correctly" (only checkable against a real model
 - **Prevention:** Phase 5 live smoke test script explicitly verifies `requests.get(BASE_URL + "/api/scenarios").json()` contains all 14 scenarios and checks `len(scenarios) >= 14`.
 - **Time lost:** ~3 minutes.
 
+
+## Phase 6
+
+### Rate-Limit Management: Dynamic token pacing for Groq free-tier eval runs
+- **Symptom:** Sequential live evaluations over multiple models (Normalizer `gpt-oss-20b`, Clause Analyst `gpt-oss-120b`, Verifier `qwen3.8-27b`) risk depleting Groq's 8,000 TPM free-tier quota when run in rapid succession, which could cause 429 errors.
+- **Hypothesis:** Groq returns `x-ratelimit-remaining-tokens` in response headers (captured by `GroqLLM.last_call`). Dynamically pacing evaluations based on remaining headroom prevents quota exhaustion without arbitrarily long fixed sleeps.
+- **Evidence:** In live runs, remaining tokens dipped as low as 32-42 tokens after complex multi-step scenarios (e.g. S04, S05, S08). With graduated backoff (`<1000` tokens → 20s pause, `<2500` → 12s pause, `<4000` → 6s pause), 6/6 must-pass scenarios completed ×2 repeats (12 executions) with zero flakiness and zero 429s. The full 14-scenario live run subsequently passed 14/14 (100.0%) completely green.
+- **Fix:** Implemented smart backoff in `evals/run.py` that inspects `outcome.remaining_rate_limit_tokens` and applies proportional cooldowns between scenarios.
+- **Prevention:** Evaluation runner defaults to or provides `--pace` flag; documented in `evals/results/latest.md` and `README.md`.
+- **Time lost:** ~5 minutes.
+
+

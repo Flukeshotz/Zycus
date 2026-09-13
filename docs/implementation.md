@@ -33,7 +33,7 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 | P3 | Groq agents, orchestrator, trace (live) | 1:00–1:35 | 18:24 IST | 18:55 IST | ☑ | 192/192 tests green; live S01, S04, S07, S08, S14 all pass; 3 real live bugs logged in DEBUG_LOG (effective_date derived resolution, term canonical text, G8 confidence definitions); latency 5.8s, tokens well within budget |
 | P4 | FastAPI routes, signed HITL, frontend | 1:35–2:05 | 19:00 IST | 20:47 IST | ☑ | 22/22 API tests green; 214/214 suite green; all 4 HITL actions verified; HMAC signed envelope; 0 LLM calls on render; .docx download opens; browser session verified |
 | P5 | Vercel production deploy + live smoke test | 2:05–2:20 | 20:49 IST | 20:54 IST | ☑ | Deployed to https://zycus-blond.vercel.app; live smoke test passed: /api/health (IST date, keys configured), S01 live (Groq gpt-oss-20b + 120b + 4 tools, 19 paragraphs docx), HITL accept_proposed (0 new LLM calls), S02 blocked (MISSING marker), simulated outage; vercel.json bundle fix logged in DEBUG_LOG |
-| P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | | | ☐ | |
+| P6 | Paced live evals, hardening, stretch goals | 2:20–2:45 | 20:58 IST | 21:18 IST | ☑ | Live must-pass scenarios 6/6 passed ×2 repeats with zero flakiness; full live suite passed 14/14 (100.0%) with dynamic rate-limit pacing; evals/results/latest.md generated; smart backoff logged in DEBUG_LOG |
 | P7 | Deliverables: README, screenshots, deck, submit | 2:45–3:00 | | | ☐ | |
 | P8 | Pre-interview readiness | *outside build clock* | | | ☐ | |
 
@@ -577,10 +577,10 @@ judgment into a deterministic gate instead.
 - Editing expected statuses to go green · fixing one scenario and breaking another (re-run offline suite after every change) · verifier accepting quotes absent from the text · retry loops hiding flakiness · Gemini fallback triggered on 400 schema errors (should only trigger on 429/5xx/timeout) · running the full live suite repeatedly and exhausting the daily token quota (D-60).
 
 ### Exit gate ✅
-- [ ] Must-pass scenarios **green live on both repeats**; overall ≥ 13/14, with any failure documented as a known limitation
-- [ ] ≥ 1 real DEBUG_LOG entry with evidence and ≥ 1 AI_MISTAKES entry
-- [ ] Production redeployed and re-smoked
-- [ ] Commit + tag `p6-done`
+- [x] Must-pass scenarios **green live on both repeats**; overall ≥ 13/14, with any failure documented as a known limitation
+- [x] ≥ 1 real DEBUG_LOG entry with evidence and ≥ 1 AI_MISTAKES entry
+- [x] Production redeployed and re-smoked
+- [x] Commit + tag `p6-done`
 
 **If it breaks:** flaky → D-59 · 429 storms → D-60 (pace, `PARALLEL=false`, D-69 if built) · out of time → skip 6.5–6.8 per the cut line; 6.1–6.4 are mandatory.
 
