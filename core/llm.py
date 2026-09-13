@@ -36,6 +36,7 @@ class CallInfo:
     completion_tokens: int | None
     total_tokens: int | None
     remaining_rate_limit_tokens: str | None
+    served_by: str | None = None
 
 
 def _map_sdk_exception(e: Exception) -> AIUnavailable:
@@ -118,11 +119,71 @@ class GroqLLM:
         try:
             raw = self._client.chat.completions.with_raw_response.create(**kwargs)
         except (RateLimitError, APITimeoutError, APIConnectionError, APIStatusError) as e:
+            # Fallback condition (D-69): If rate limited (429), timeout, or 5xx, retry once on Gemini
+            is_rate_limit_or_outage = isinstance(e, (RateLimitError, APITimeoutError)) or (
+                isinstance(e, APIStatusError) and e.status_code >= 500
+            )
+            if is_rate_limit_or_outage and self.settings.enable_fallback and self.settings.gemini_key_configured:
+                try:
+                    return self._call_gemini_fallback(
+                        system=system,
+                        user=user,
+                        schema_model=schema_model,
+                        schema_name=schema_name,
+                        temperature=temperature,
+                    )
+                except Exception:
+                    pass
             raise _map_sdk_exception(e) from e
 
         completion = raw.parse()
         self._record_usage(model, completion, raw)
 
+        content = completion.choices[0].message.content
+        try:
+            return schema_model.model_validate_json(content)
+        except (ValidationError, json.JSONDecodeError) as e:
+            raise AIUnavailable("invalid_output") from e
+
+    def _call_gemini_fallback(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema_model: type[T],
+        schema_name: str,
+        temperature: float,
+    ) -> T:
+        """Fallback to Gemini via OpenAI-compatible endpoint on Groq 429/5xx (D-69)."""
+        from openai import OpenAI
+
+        client = OpenAI(
+            api_key=self.settings.gemini_api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            timeout=25.0,
+        )
+        schema = strict_schema(schema_model)
+        completion = client.chat.completions.create(
+            model=self.settings.model_fallback,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "strict": True, "schema": schema},
+            },
+            temperature=temperature,
+        )
+        usage = getattr(completion, "usage", None)
+        self.last_call = CallInfo(
+            model=self.settings.model_fallback,
+            prompt_tokens=getattr(usage, "prompt_tokens", None) if usage else None,
+            completion_tokens=getattr(usage, "completion_tokens", None) if usage else None,
+            total_tokens=getattr(usage, "total_tokens", None) if usage else None,
+            remaining_rate_limit_tokens=None,
+            served_by="gemini-fallback",
+        )
         content = completion.choices[0].message.content
         try:
             return schema_model.model_validate_json(content)

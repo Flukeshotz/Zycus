@@ -531,22 +531,47 @@ body {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border-subtle);
 }
-.draft-preview p { margin-bottom: 0.5rem; }
+.draft-preview p { margin-bottom: 0.75rem; }
+.draft-preview mark {
+  color: inherit;
+  background: transparent;
+  text-decoration: none;
+}
 .draft-preview .highlight-yellow {
-  background: rgba(234,179,8,0.18);
-  padding: 0.1rem 0.2rem;
-  border-radius: 2px;
+  background: rgba(234, 179, 8, 0.15);
+  color: #fef08a; /* High-contrast readable warm light yellow */
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  border-bottom: 1.5px solid rgba(234, 179, 8, 0.6);
+  text-decoration: none;
+  font-weight: 450;
 }
 .draft-preview .highlight-red {
-  background: rgba(239,68,68,0.18);
-  padding: 0.1rem 0.2rem;
-  border-radius: 2px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5; /* High-contrast readable light red */
+  padding: 0.15rem 0.35rem;
+  border-radius: 3px;
+  border-bottom: 1.5px solid rgba(239, 68, 68, 0.6);
+  text-decoration: none;
+  font-weight: 500;
 }
 .draft-preview .preview-note {
-  font-size: 0.7rem;
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
   color: var(--accent-purple);
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  margin-left: 0.35rem;
   cursor: help;
-  vertical-align: super;
+  vertical-align: middle;
+  text-decoration: none;
+}
+.draft-preview .preview-note:hover {
+  background: rgba(167, 139, 250, 0.25);
+  border-color: var(--accent-purple);
 }
 
 /* --- Agent Trace --------------------------------------------- */

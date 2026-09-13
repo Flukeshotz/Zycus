@@ -53,6 +53,7 @@ class _StepHandle:
         self.completion_tokens = call_info.completion_tokens
         self.total_tokens = call_info.total_tokens
         self.remaining_rate_limit_tokens = call_info.remaining_rate_limit_tokens
+        self.served_by = getattr(call_info, "served_by", None)
 
     def finalize(self) -> TraceStep:
         duration_ms = (time.perf_counter() - self._start) * 1000

@@ -77,3 +77,37 @@ class TestExceptionMapping:
         mapped = _map_sdk_exception(ValueError("something unrelated"))
         assert isinstance(mapped, AIUnavailable)
         assert mapped.reason == "unknown_error"
+
+
+class TestFallback:
+    def test_fallback_called_on_rate_limit_when_enabled(self):
+        from pydantic import BaseModel
+
+        class SimpleModel(BaseModel):
+            value: str
+
+        settings = _fake_settings(enable_fallback=True, gemini_api_key="AQ.test_key")
+        llm = GroqLLM(settings=settings)
+        # Mock Groq client to raise RateLimitError
+        mock_client = MagicMock()
+        mock_client.chat.completions.with_raw_response.create.side_effect = RateLimitError(
+            "rate limited", response=MagicMock(status_code=429), body=None
+        )
+        llm._client = mock_client
+
+        # Mock _call_gemini_fallback to succeed
+        llm._call_gemini_fallback = MagicMock(return_value=SimpleModel(value="from_gemini"))
+
+        res = llm.structured_call(
+            model="openai/gpt-oss-20b",
+            system="sys",
+            user="user",
+            schema_model=SimpleModel,
+            schema_name="simple",
+            reasoning_effort="low",
+            temperature=0.3,
+            max_completion_tokens=100,
+        )
+        assert res.value == "from_gemini"
+        llm._call_gemini_fallback.assert_called_once()
+
