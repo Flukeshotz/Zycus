@@ -42,13 +42,19 @@ Interpretation guide, with examples:
 duration_months=24. "1 October 2026" -> clear.
 - "derived": the value must be computed from a fixed, unambiguous relative \
 reference for effective_date -> derived (do not guess an actual date; the caller \
-resolves this). This covers "use today's date" / "today", "tomorrow", "day \
-after tomorrow", "N days after/before/from today", and "in N days" — every one \
-of these has exactly one correct resolved date, so none of them are ambiguous.
+resolves this). The general shape is "<number> <days/weeks/months/years> \
+<before/after/from> <today/tomorrow/day after tomorrow/yesterday>", or the \
+shorthand forms "in N days/weeks/months/years" and "N days/weeks/months/years \
+ago". Examples: "use today's date" / "today", "tomorrow", "day after tomorrow", \
+"yesterday", "3 days after today", "in 2 months", "6 months ago", "2 weeks from \
+tomorrow" — every one of these has exactly one correct resolved date, so none of \
+them are ambiguous, however they're composed.
 - "ambiguous": the value cannot be confidently interpreted, or refers to an event \
-whose date isn't fixed. "until the project ends" for a term -> ambiguous, \
-duration_months=null. "next quarter" or "once signed" for effective_date -> \
-ambiguous (no single fixed date follows from the phrase alone).
+whose date isn't fixed, or is a relative phrase outside the derived shape above. \
+"until the project ends" for a term -> ambiguous, duration_months=null. "next \
+quarter", "next week", "next business day", or "once signed" for effective_date \
+-> ambiguous (no single fixed date follows from the phrase alone — "next week" \
+names a week, not a day; a specific business day isn't fixed without a calendar).
 - "not_applicable": the value explicitly says the field does not apply. \
 "Not applicable — this is an NDA, not a commercial agreement" for payment_terms -> \
 not_applicable. An empty special_clause is also not_applicable (nothing requested).

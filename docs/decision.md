@@ -786,6 +786,47 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
   must be exactly one way a DERIVED field's value is ever produced — parser resolution or ambiguity,
   never a default.
 
+### D-76 · Relative-date parsing replaced with one compositional grammar, not per-phrase patching
+- **Decision:** Rewrote the relative-date half of `tools/parser.py::parse_date` around one
+  compositional grammar instead of four independently hand-matched phrase patterns:
+  `Anchor := today | tomorrow | day after tomorrow | yesterday`,
+  `Offset := <number> (days|weeks|months|years) (before|after|from) Anchor`, plus the shorthands
+  `in <number> <unit>` and `<number> <unit> ago` (both anchored to today). Added `_add_months()` for
+  calendar-correct month/year arithmetic (clamping day-of-month, e.g. 31 Jan + 1 month → 28/29 Feb,
+  never a `ValueError`). `agents/normalizer.py`'s prompt now describes the general shape instead of
+  enumerating examples one at a time.
+- **Why:** found live — "2 months from tomorrow" resolved to just *tomorrow's* date, because the bare
+  `_TOMORROW_PATTERN` matched the substring "tomorrow" and silently discarded "2 months from," the
+  same class of bug as D-74 and D-75 but with the parser confidently returning a value this time, so
+  D-75's ambiguity-downgrade safety net didn't catch it either. This was the fourth live-tested phrase
+  in a row (`tomorrow` → `N days after today` → `in 2 months` → `2 months from tomorrow`) to break the
+  previous fix in a new way — clear evidence that enumerating phrases was the wrong shape of fix, not
+  that one more pattern would close the gap. A user explicitly asked for "a fix that works for
+  everything," which this answers honestly: not by parsing all of English (unbounded, and therefore
+  unsafe to ever guess on), but by resolving the complete, bounded set of expressions that compose a
+  fixed anchor with a fixed numeric offset — which is exactly the set of relative-date phrases that
+  have exactly one correct answer. Anything outside that grammar ("next week," "next quarter," "next
+  business day," "once signed") has no single fixed date and correctly stays `G8_ambiguity` — this is
+  the intended boundary, not a remaining gap.
+- **Verified:** offline — `TestRelativeDateGrammar` (weeks/months/years, all four anchors, `ago`/`in
+  N`/`before`/`after`/`from`, direct `_add_months` calendar-boundary tests including a leap year and a
+  shorter-month clamp, and explicit `next week`/`next quarter`/`next business day`/bare-unit-without-
+  number tests confirming the ambiguity boundary held) plus a full-pipeline regression for the exact
+  phrase that broke. Live against the real Groq deployment: 13 phrases spanning every anchor, every
+  unit, every direction, and three genuinely-ambiguous phrases, all correct (`2 months from tomorrow`
+  → 15 Nov from a 14 Sep + 1 day base; `6 months ago` → 14 March, crossing a year boundary correctly;
+  `next week`/`next quarter`/`next business day` → `G8_ambiguity`, raw text shown). 250/250 tests
+  passing (was 228; 22 added — most of them new coverage for the generalized grammar, not just
+  regressions for phrases that broke).
+- **If it breaks:** *a new anchor or unit is needed* → extend `_ANCHOR_ALTERNATION`/
+  `_ANCHOR_OFFSET_DAYS` or `_UNIT_ALTERNATION`/`_apply_offset` — the grammar is designed to be extended
+  in one place, not by adding another parallel pattern. *month/year arithmetic looks wrong near a
+  month boundary* → check `_add_months`'s day-clamping directly with `TestRelativeDateGrammar`'s
+  calendar tests before assuming the bug is elsewhere. *the live model still won't classify a
+  grammar-covered phrase as `derived`* → D-75's downgrade-to-ambiguous safety net means the worst case
+  is a correct `G8_ambiguity` flag, never a wrong date — this generalization is defense in depth on
+  top of that safety net, not a replacement for it.
+
 ---
 
 ## Revision Log
@@ -796,4 +837,4 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
 | 2026-09-13 | Stack change: runtime LLM → Groq (D-55–D-60); hosting → Vercel with FastAPI + static UI and signed stateless HITL (D-61–D-64); secrets and repo (D-65–D-66); spike v2 (D-67); Prompt Guard stretch (D-68); Gemini fallback (D-69). Superseded D-24, D-28, D-29, D-35, D-36, D-37, D-44. D-41 cut line updated |
 | 2026-09-13 | Phase 0 spike run: 10/10 checks passed live against Groq + Gemini. D-32 resolved 🟡→✅ (Word comments supported). Implementation notes added to D-68 (raw float response) and D-69 (verified but stays conditional) |
 | 2026-09-13 | Post-P6 audit: D-70 (Gemini fallback now auto-enabled by key presence, `ENABLE_FALLBACK` superseded by `DISABLE_FALLBACK`, eval reproducibility fixed), D-71 (table overflow, 422 error handling, test hygiene), D-72 (pushed P7 deliverables that were staged but never reached `origin/main`; created `v1.0`) |
-| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing. D-74: "N days after/before/from today" and "in N days" were silently matching the bare "today" pattern and resolving to the wrong date with no warning — fixed with specific-before-general pattern ordering; 227/227 tests passing. D-75: the D-73 fallback itself was unsafe — a DERIVED-but-parser-unresolvable date ("in 2 months") was silently defaulting to today; now downgrades to ambiguous instead; 228/228 tests passing |
+| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing. D-74: "N days after/before/from today" and "in N days" were silently matching the bare "today" pattern and resolving to the wrong date with no warning — fixed with specific-before-general pattern ordering; 227/227 tests passing. D-75: the D-73 fallback itself was unsafe — a DERIVED-but-parser-unresolvable date ("in 2 months") was silently defaulting to today; now downgrades to ambiguous instead; 228/228 tests passing. D-76: relative-date parsing replaced entirely with one compositional grammar (Anchor + Offset, any unit, any of the four anchors) after "2 months from tomorrow" broke the fourth phrase-patching fix in a row; 250/250 tests passing |

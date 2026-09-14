@@ -273,3 +273,35 @@ offline) and "the document reads correctly" (only checkable against a real model
   always needs a corresponding audit of every place downstream code assumed `derived` meant
   "resolvable," not just adding the new phrase's own resolution logic.
 - **Time lost:** ~15 minutes.
+
+### Bug (and architecture fix): "2 months from tomorrow" broke the fourth patch in a row
+- **Symptom:** "2 months from tomorrow" as `effective_date` resolved to just tomorrow's date
+  (15 September), silently discarding "2 months from" — the same substring-collision failure shape
+  as D-74, but this time the parser returned a confident (wrong) value, so D-75's
+  downgrade-to-ambiguous safety net never triggered.
+- **Hypothesis:** the bare `_TOMORROW_PATTERN` matched the substring "tomorrow" inside the composed
+  phrase, exactly the way `_TODAY_PATTERN` did for "three days after today" in D-74 — except this
+  phrase composes an anchor ("tomorrow") with an offset ("2 months from"), a shape none of the
+  individually hand-matched patterns (today / tomorrow / day-after-tomorrow / N-days-after-today /
+  in-N-days) were built to recognize together.
+- **Evidence:** `curl /api/run` with `effective_date: "2 months from tomorrow"` returned
+  `value_for_document: "15 September 2026"` — tomorrow, not two months past it.
+- **Root cause, stated plainly:** this was the fourth live-tested phrase in a row (tomorrow -> N days
+  after today -> in 2 months -> 2 months from tomorrow) to break the previous fix in a new way. That
+  pattern is the actual signal: enumerating phrases is the wrong shape of fix for an open compositional
+  space, no matter how many phrases get added.
+- **Fix:** replaced the four separate phrase patterns with one compositional grammar — `Anchor :=
+  today | tomorrow | day after tomorrow | yesterday`, `Offset := <number> <unit> <before|after|from>
+  <Anchor>`, plus `in <number> <unit>` and `<number> <unit> ago` shorthands, unit ∈ {days, weeks,
+  months, years}. Added `_add_months()` for calendar-correct month/year arithmetic. This subsumes
+  every previously-patched phrase and additionally composes correctly (any anchor + any unit + any
+  direction), rather than needing a new pattern for each new combination someone tries.
+- **Prevention:** `TestRelativeDateGrammar` (22 new tests: every unit, every anchor, composability,
+  direct calendar-arithmetic edge cases including a leap year and a shorter-month clamp, and explicit
+  tests that genuinely ambiguous phrases — "next week," "next quarter," "next business day," a bare
+  unit with no number — still correctly return `None`). Verified live: 13 phrases across every anchor
+  and unit, all correct, including the exact phrase that broke and three ambiguous phrases confirming
+  the safety boundary held. Logged as D-76.
+- **Time lost across D-73 → D-76:** ~70 minutes total, but the pattern only became legible after the
+  fourth break — worth noting for next time: when the *second* live-tested variant of a fix breaks in
+  the same class of way, that is the signal to generalize the grammar rather than patch the instance.

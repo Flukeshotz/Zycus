@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from tools.parser import Duration, ParsedDate, format_long_date, parse_date, parse_duration
+from tools.parser import Duration, ParsedDate, _add_months, format_long_date, parse_date, parse_duration
 
 
 class TestParseDuration:
@@ -159,6 +159,124 @@ class TestParseDate:
 
     def test_invalid_calendar_date_returns_none(self):
         assert parse_date("31 February 2026", "Asia/Kolkata") is None
+
+
+class TestRelativeDateGrammar:
+    """D-76: the compositional grammar (Anchor + Offset) that replaced
+    per-phrase pattern matching after tomorrow/day-after-tomorrow/N-days
+    each broke in a new way when tested live. These tests cover the class
+    of phrase, not just the one that happened to be tried."""
+
+    TZ = "Asia/Kolkata"
+
+    def _today(self):
+        return datetime.now(ZoneInfo(self.TZ)).date()
+
+    # -- the exact regression that prompted this rewrite --------------
+
+    def test_n_months_from_tomorrow_composes_correctly(self):
+        # "2 months from tomorrow" was resolving to just "tomorrow" — the
+        # bare _TOMORROW_PATTERN matched the substring and silently
+        # dropped "2 months from" entirely.
+        result = parse_date("2 months from tomorrow", self.TZ)
+        assert result is not None
+        assert result.interpretation == "derived"
+        expected = _add_months(self._today() + timedelta(days=1), 2)
+        assert result.value == expected
+        assert result.value != self._today() + timedelta(days=1)
+
+    # -- weeks --------------------------------------------------------
+
+    def test_n_weeks_after_today(self):
+        result = parse_date("2 weeks after today", self.TZ)
+        assert result.value == self._today() + timedelta(weeks=2)
+
+    def test_n_weeks_from_tomorrow(self):
+        result = parse_date("3 weeks from tomorrow", self.TZ)
+        assert result.value == self._today() + timedelta(days=1) + timedelta(weeks=3)
+
+    def test_in_n_weeks(self):
+        result = parse_date("in two weeks", self.TZ)
+        assert result.value == self._today() + timedelta(weeks=2)
+
+    def test_n_weeks_ago(self):
+        result = parse_date("2 weeks ago", self.TZ)
+        assert result.value == self._today() - timedelta(weeks=2)
+
+    # -- months ---------------------------------------------------------
+
+    def test_n_months_after_today(self):
+        result = parse_date("3 months after today", self.TZ)
+        assert result.value == _add_months(self._today(), 3)
+
+    def test_in_n_months(self):
+        result = parse_date("in 2 months", self.TZ)
+        assert result is not None
+        assert result.interpretation == "derived"
+        assert result.value == _add_months(self._today(), 2)
+
+    def test_n_months_ago(self):
+        result = parse_date("6 months ago", self.TZ)
+        assert result.value == _add_months(self._today(), -6)
+
+    def test_word_number_months(self):
+        result = parse_date("three months from today", self.TZ)
+        assert result.value == _add_months(self._today(), 3)
+
+    # -- years ----------------------------------------------------------
+
+    def test_n_years_after_today(self):
+        result = parse_date("1 year after today", self.TZ)
+        assert result.value == _add_months(self._today(), 12)
+
+    def test_in_n_years(self):
+        result = parse_date("in 2 years", self.TZ)
+        assert result.value == _add_months(self._today(), 24)
+
+    # -- composability across all four anchors ---------------------------
+
+    def test_days_before_day_after_tomorrow(self):
+        result = parse_date("1 day before day after tomorrow", self.TZ)
+        # day after tomorrow, minus 1 day, == tomorrow
+        assert result.value == self._today() + timedelta(days=1)
+
+    def test_yesterday_anchor(self):
+        result = parse_date("yesterday", self.TZ)
+        assert result is not None
+        assert result.interpretation == "derived"
+        assert result.value == self._today() - timedelta(days=1)
+
+    def test_n_days_after_yesterday(self):
+        result = parse_date("2 days after yesterday", self.TZ)
+        # yesterday + 2 days == tomorrow
+        assert result.value == self._today() + timedelta(days=1)
+
+    # -- month-end calendar arithmetic (direct, not date-dependent) ------
+
+    def test_add_months_clamps_to_shorter_month(self):
+        assert _add_months(date(2026, 1, 31), 1) == date(2026, 2, 28)  # 2026 not a leap year
+
+    def test_add_months_leap_year(self):
+        assert _add_months(date(2024, 1, 31), 1) == date(2024, 2, 29)
+
+    def test_add_months_crosses_year_boundary(self):
+        assert _add_months(date(2026, 11, 15), 2) == date(2027, 1, 15)
+
+    def test_add_months_negative_crosses_year_boundary(self):
+        assert _add_months(date(2026, 1, 15), -2) == date(2025, 11, 15)
+
+    # -- genuinely ambiguous phrases must still return None --------------
+
+    def test_next_week_is_still_ambiguous(self):
+        # "next week" has no single fixed date (which day of next week?) —
+        # must stay a human-review case, not a guess.
+        assert parse_date("next week", self.TZ) is None
+
+    def test_next_business_day_is_still_ambiguous(self):
+        assert parse_date("next business day", self.TZ) is None
+
+    def test_bare_unit_without_number_is_ambiguous(self):
+        assert parse_date("next month", self.TZ) is None
 
 
 class TestFormatLongDate:

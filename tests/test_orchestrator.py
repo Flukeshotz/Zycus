@@ -23,7 +23,7 @@ from core.models import (
     ReviewerActionType,
 )
 from core.orchestrator import _canonicalize_parsed_fields, render_docx, rerender, run
-from tools.parser import format_long_date
+from tools.parser import _add_months, format_long_date
 
 SAMPLE_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_inputs.json"
 
@@ -147,6 +147,22 @@ class TestRelativeEffectiveDateEndToEnd:
         expected = format_long_date(now.date() + timedelta(days=3))
         assert d.value_for_document == expected
         assert d.value_for_document != format_long_date(now.date())
+
+    def test_n_months_from_tomorrow_end_to_end(self):
+        # D-76, found live: "2 months from tomorrow" was resolving to just
+        # tomorrow's date — the bare "tomorrow" pattern matched the
+        # substring and silently discarded "2 months from". The grammar
+        # rewrite must resolve the full composed expression correctly
+        # through the whole pipeline, not just in the isolated parser.
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "2 months from tomorrow"})
+        result = run(inputs, FakeLLM(), now)
+        d = _decision(result, "effective_date")
+        assert d.status == FieldStatus.AUTO_FILLED_WITH_ASSUMPTION
+        tomorrow = now.date() + timedelta(days=1)
+        expected = format_long_date(_add_months(tomorrow, 2))
+        assert d.value_for_document == expected
+        assert d.value_for_document != format_long_date(tomorrow)
 
 
 class TestS02MissingGoverningLaw:
@@ -300,20 +316,22 @@ class TestCanonicalizeParsedFields:
         assert result != today_str
 
     def test_derived_but_unparseable_downgrades_to_ambiguous_not_today(self):
-        # D-75: found live with "in 2 months" — the model classified this
-        # DERIVED (a reasonable generalization from the day-based "derived"
-        # examples in the prompt, but our parser only understands day-based
-        # offsets), and the deterministic parser genuinely cannot resolve
-        # it. The D-73 fallback (format_long_date(now.date()) when parsing
-        # fails) would have silently produced today's date here — exactly
-        # the D-74 bug shape, reached through a different door. Must
-        # downgrade to AMBIGUOUS so G8 shows the raw text to a human
-        # instead of G10 auto-filling a confident, wrong date.
+        # D-75: originally found live with "in 2 months" — at the time, the
+        # parser only understood day-based offsets, the model classified
+        # the phrase DERIVED anyway, and the D-73 fallback
+        # (format_long_date(now.date()) when parsing fails) silently
+        # produced today's date — exactly the D-74 bug shape, reached
+        # through a different door. D-76 generalized the parser to a
+        # compositional grammar that now resolves "in 2 months" correctly
+        # (see TestRelativeEffectiveDateEndToEnd), so this test moved to a
+        # phrase that's still genuinely outside that grammar — "next
+        # business day" has no fixed single offset, so it must still
+        # downgrade to AMBIGUOUS rather than ever guessing a date.
         now = _now()
-        inputs = _sample_inputs().model_copy(update={"effective_date": "in 2 months"})
+        inputs = _sample_inputs().model_copy(update={"effective_date": "next business day"})
         normalized_by_field = {
             "effective_date": NormalizedField(
-                field="effective_date", raw_value="in 2 months",
+                field="effective_date", raw_value="next business day",
                 normalized_value=None, duration_months=None,
                 interpretation=Interpretation.DERIVED, confidence=Confidence.MEDIUM, reason="x",
             )
