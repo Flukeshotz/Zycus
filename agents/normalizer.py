@@ -42,9 +42,9 @@ Interpretation guide, with examples:
 duration_months=24. "1 October 2026" -> clear.
 - "derived": the value must be computed from a fixed, unambiguous relative \
 reference for effective_date -> derived (do not guess an actual date; the caller \
-resolves this). This covers "use today's date" / "today", "tomorrow", and "day \
-after tomorrow" — all three have exactly one correct resolved date, so none of \
-them are ambiguous.
+resolves this). This covers "use today's date" / "today", "tomorrow", "day \
+after tomorrow", "N days after/before/from today", and "in N days" — every one \
+of these has exactly one correct resolved date, so none of them are ambiguous.
 - "ambiguous": the value cannot be confidently interpreted, or refers to an event \
 whose date isn't fixed. "until the project ends" for a term -> ambiguous, \
 duration_months=null. "next quarter" or "once signed" for effective_date -> \

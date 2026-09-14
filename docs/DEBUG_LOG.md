@@ -226,3 +226,25 @@ offline) and "the document reads correctly" (only checkable against a real model
   `TestRelativeEffectiveDateEndToEnd` (full pipeline, both phrases). Verified live against the real
   Groq deployment for all three phrases before and after. Logged as D-73.
 - **Time lost:** ~20 minutes.
+
+### Bug: "N days after today" silently resolved to today's date — no warning, worse than the last one
+- **Symptom:** Immediately after fixing "tomorrow" (previous entry), testing "three days after today"
+  as `effective_date` returned `AUTO_FILLED_WITH_ASSUMPTION` / `READY_FOR_SIGNATURE_REVIEW` with
+  value "14 September 2026" — today's date, not three days out. Unlike the "tomorrow" bug, this one
+  produced no flag at all; a reviewer would have to notice the date was wrong themselves.
+- **Hypothesis:** `_TODAY_PATTERN.search(stripped)` uses `re.search`, not a full-string match, and
+  its alternation includes the bare word `today`. "three days after today" contains that word as a
+  substring, so the pattern matched and returned today's date, never reaching any offset logic.
+- **Evidence:** `curl /api/run` with `effective_date: "three days after today"` returned
+  `value_for_document: "14 September 2026"` against a live base date of 14 September 2026 — i.e.
+  offset 0, "three days after" completely discarded, and no G8/G9 flag anywhere in the response.
+- **Fix:** Added `_DAYS_RELATIVE_TO_TODAY_PATTERN` ("N days after/before/from today") and
+  `_IN_N_DAYS_PATTERN` ("in N days") to `tools/parser.py`, both checked *before* `_TODAY_PATTERN` —
+  same specific-before-general ordering already used for "day after tomorrow" vs "tomorrow" in the
+  previous fix. Extended the live prompt (`agents/normalizer.py`) to classify these as `derived`.
+- **Prevention:** 6 new tests in `tests/test_parser.py` (substring-collision regression, digit/word
+  numbers, before/after/from, "in N days") and `tests/test_orchestrator.py` (full-pipeline regression
+  for the exact phrase that broke). Verified live: three/5/2/ten-day offsets all correct against the
+  real deployment. Logged as D-74.
+- **Time lost:** ~15 minutes — found by testing one phrase past the fix that had just shipped for
+  "tomorrow", which is exactly why the fix was tested with more than the one phrase that prompted it.

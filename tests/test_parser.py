@@ -104,6 +104,37 @@ class TestParseDate:
         day_after = parse_date("day after tomorrow", "Asia/Kolkata")
         assert day_after.value == tomorrow.value + timedelta(days=1)
 
+    def test_n_days_after_today_not_mistaken_for_bare_today(self):
+        # D-74, found live: "three days after today" contains the bare word
+        # "today" as a substring — it was matching _TODAY_PATTERN and
+        # silently resolving to *today's* date, discarding "three days
+        # after" entirely. Must honor the numeric offset.
+        result = parse_date("three days after today", "Asia/Kolkata")
+        assert result is not None
+        assert result.interpretation == "derived"
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+        assert result.value == today + timedelta(days=3)
+
+    def test_n_days_after_today_digit_form(self):
+        result = parse_date("5 days after today", "Asia/Kolkata")
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+        assert result.value == today + timedelta(days=5)
+
+    def test_n_days_before_today(self):
+        result = parse_date("2 days before today", "Asia/Kolkata")
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+        assert result.value == today - timedelta(days=2)
+
+    def test_n_days_from_today(self):
+        result = parse_date("four days from today", "Asia/Kolkata")
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+        assert result.value == today + timedelta(days=4)
+
+    def test_in_n_days(self):
+        result = parse_date("in ten days", "Asia/Kolkata")
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+        assert result.value == today + timedelta(days=10)
+
     def test_explicit_day_month_year(self):
         result = parse_date("1 October 2026", "Asia/Kolkata")
         assert result == ParsedDate(value=date(2026, 10, 1), interpretation="clear")

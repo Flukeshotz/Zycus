@@ -134,6 +134,20 @@ class TestRelativeEffectiveDateEndToEnd:
         expected = format_long_date(now.date() + timedelta(days=2))
         assert d.value_for_document == expected
 
+    def test_three_days_after_today_not_silently_resolved_to_today(self):
+        # D-74, found live: this exact phrase was matching the bare "today"
+        # pattern as a substring and silently resolving to today's date,
+        # marked READY_FOR_SIGNATURE_REVIEW with no warning — a wrong date
+        # shipped confidently, discarding "three days after" entirely.
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "three days after today"})
+        result = run(inputs, FakeLLM(), now)
+        d = _decision(result, "effective_date")
+        assert d.status == FieldStatus.AUTO_FILLED_WITH_ASSUMPTION
+        expected = format_long_date(now.date() + timedelta(days=3))
+        assert d.value_for_document == expected
+        assert d.value_for_document != format_long_date(now.date())
+
 
 class TestS02MissingGoverningLaw:
     def test_blocked_readiness_and_marker(self):

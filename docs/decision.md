@@ -732,6 +732,30 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
   without a fixed, unambiguous offset — anything genuinely calendar-dependent belongs in
   `G8_ambiguity`, not a guess.
 
+### D-74 · "N days after/before/from today" silently matched the bare "today" pattern — wrong date, no warning
+- **Decision:** Added `_DAYS_RELATIVE_TO_TODAY_PATTERN` ("N days after/before/from today", digit or
+  word number) and `_IN_N_DAYS_PATTERN` ("in N days") to `tools/parser.py::parse_date`, both checked
+  *before* `_TODAY_PATTERN`. Extended `agents/normalizer.py`'s prompt to classify these as `derived`
+  too.
+- **Why:** found immediately after D-73 shipped, by testing "three days after today" — a direct
+  follow-on to the same class of input. `_TODAY_PATTERN.search()` matches the bare word "today"
+  *anywhere* in the string, so "three days after today" matched it and resolved to **today's date**,
+  silently discarding "three days after" — and unlike D-73's "tomorrow" bug, this one didn't even
+  flag for review: it came back `AUTO_FILLED_WITH_ASSUMPTION` / `READY_FOR_SIGNATURE_REVIEW` with a
+  wrong date and no warning. Confidently wrong is strictly worse than flagged-ambiguous, which is the
+  one failure mode this entire parser module exists to prevent (see its own docstring: "a wrong guess
+  would be unsafe; None never is"). D-73's fix pattern (specific-before-general ordering) generalizes
+  cleanly here — these phrases have exactly one correct offset each, same as "tomorrow" did.
+- **Verified:** offline (6 new tests: substring-collision regression, digit and word-number forms,
+  before/after/from, "in N days") and live against the real Groq deployment — "three days after
+  today" → 17 Sep from a 14 Sep base, "5 days after today" → 19 Sep, "2 days before today" → 12 Sep,
+  "in ten days" → 24 Sep, all correctly offset. 227/227 tests passing (was 221; 6 added).
+- **If it breaks:** *a new "___ today" phrase resolves to bare today's date instead of its offset* →
+  the specific pattern for it is either missing or ordered after `_TODAY_PATTERN` in `parse_date`;
+  any pattern containing the substring "today" or "tomorrow" must be checked before the bare-word
+  pattern that would otherwise swallow it. *this generalizes further (e.g. "N weeks after today")* →
+  same treatment, same ordering constraint — extend the pattern, don't special-case it separately.
+
 ---
 
 ## Revision Log
@@ -742,4 +766,4 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
 | 2026-09-13 | Stack change: runtime LLM → Groq (D-55–D-60); hosting → Vercel with FastAPI + static UI and signed stateless HITL (D-61–D-64); secrets and repo (D-65–D-66); spike v2 (D-67); Prompt Guard stretch (D-68); Gemini fallback (D-69). Superseded D-24, D-28, D-29, D-35, D-36, D-37, D-44. D-41 cut line updated |
 | 2026-09-13 | Phase 0 spike run: 10/10 checks passed live against Groq + Gemini. D-32 resolved 🟡→✅ (Word comments supported). Implementation notes added to D-68 (raw float response) and D-69 (verified but stays conditional) |
 | 2026-09-13 | Post-P6 audit: D-70 (Gemini fallback now auto-enabled by key presence, `ENABLE_FALLBACK` superseded by `DISABLE_FALLBACK`, eval reproducibility fixed), D-71 (table overflow, 422 error handling, test hygiene), D-72 (pushed P7 deliverables that were staged but never reached `origin/main`; created `v1.0`) |
-| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing |
+| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing. D-74: "N days after/before/from today" and "in N days" were silently matching the bare "today" pattern and resolving to the wrong date with no warning — fixed with specific-before-general pattern ordering; 227/227 tests passing |

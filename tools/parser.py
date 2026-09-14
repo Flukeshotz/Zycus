@@ -7,8 +7,9 @@ unparseable value as ambiguous (G8) or a cross-check mismatch (G9), which
 routes to a human. A wrong guess would be unsafe; None never is.
 
   parse_duration(text)  -> a whole number of months, or "perpetual"
-  parse_date(text, tz)  -> "today" resolved in a fixed timezone, or an
-                           explicit calendar date
+  parse_date(text, tz)  -> a relative date reference ("today", "tomorrow",
+                           "N days after today", etc.) resolved in a fixed
+                           timezone, or an explicit calendar date
 
 Used two ways (D-46): as the Normalizer's deterministic cross-check in every
 mode (G9), and as the entire "Normalizer" in FakeLLM / degraded mode, since
@@ -91,6 +92,28 @@ _TODAY_PATTERN = re.compile(
 # since it contains "tomorrow" as a substring and needs a different offset.
 _DAY_AFTER_TOMORROW_PATTERN = re.compile(r"\bday\s+after\s+tomorrow\b", re.I)
 _TOMORROW_PATTERN = re.compile(r"\btomorrow\b", re.I)
+# "N days after/before/from today" and "in N days" — these must be checked
+# before _TODAY_PATTERN, since they contain the bare word "today" as a
+# substring (or would otherwise collide with it) and need the numeric offset
+# honored rather than silently dropped (D-74: "three days after today" was
+# matching _TODAY_PATTERN's "today" alternative and resolving to today's
+# date, discarding "three days after" entirely — a wrong date shipped as
+# READY_FOR_SIGNATURE_REVIEW with no warning, worse than an ambiguity flag).
+_DAYS_RELATIVE_TO_TODAY_PATTERN = re.compile(
+    rf"\b(?P<num>{_NUMBER_ALTERNATION})\s+days?\s+(?P<dir>after|before|from)\s+today\b",
+    re.I,
+)
+_IN_N_DAYS_PATTERN = re.compile(rf"\bin\s+(?P<num>{_NUMBER_ALTERNATION})\s+days?\b", re.I)
+
+
+def _to_int(raw: str) -> int | None:
+    raw = raw.lower()
+    if raw in _WORD_NUMBERS:
+        return _WORD_NUMBERS[raw]
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 _MONTH_NAMES = [
     "january", "february", "march", "april", "may", "june",
@@ -116,27 +139,40 @@ class ParsedDate:
 def parse_date(text: str, tz: str) -> ParsedDate | None:
     """
     Resolve a relative date reference — "today" / "use today's date",
-    "tomorrow", "day after tomorrow" — to a concrete date in `tz`
-    (interpretation="derived"), or parse an explicit calendar date
-    (interpretation="clear"). Returns None for anything else, including an
-    invalid calendar date (e.g. "31 February") or a genuinely ambiguous
-    relative phrase (e.g. "next quarter") that has no safe fixed offset.
+    "tomorrow", "day after tomorrow", "N days after/before/from today",
+    "in N days" — to a concrete date in `tz` (interpretation="derived"), or
+    parse an explicit calendar date (interpretation="clear"). Returns None
+    for anything else, including an invalid calendar date (e.g.
+    "31 February") or a genuinely ambiguous relative phrase (e.g. "next
+    quarter") that has no safe fixed offset.
     """
     if not text or not text.strip():
         return None
     stripped = text.strip()
+    today = datetime.now(ZoneInfo(tz)).date()
 
-    if _TODAY_PATTERN.search(stripped):
-        today = datetime.now(ZoneInfo(tz)).date()
-        return ParsedDate(value=today, interpretation="derived")
+    # Most specific patterns first — several contain "today" or "tomorrow"
+    # as a substring and must not fall into the bare-word pattern below,
+    # which would silently discard the numeric offset (D-74).
+    if m := _DAYS_RELATIVE_TO_TODAY_PATTERN.search(stripped):
+        n = _to_int(m.group("num"))
+        if n is not None:
+            sign = -1 if m.group("dir").lower() == "before" else 1
+            return ParsedDate(value=today + timedelta(days=sign * n), interpretation="derived")
+
+    if m := _IN_N_DAYS_PATTERN.search(stripped):
+        n = _to_int(m.group("num"))
+        if n is not None:
+            return ParsedDate(value=today + timedelta(days=n), interpretation="derived")
 
     if _DAY_AFTER_TOMORROW_PATTERN.search(stripped):
-        today = datetime.now(ZoneInfo(tz)).date()
         return ParsedDate(value=today + timedelta(days=2), interpretation="derived")
 
     if _TOMORROW_PATTERN.search(stripped):
-        today = datetime.now(ZoneInfo(tz)).date()
         return ParsedDate(value=today + timedelta(days=1), interpretation="derived")
+
+    if _TODAY_PATTERN.search(stripped):
+        return ParsedDate(value=today, interpretation="derived")
 
     if m := _ISO_DATE_PATTERN.search(stripped):
         return _safe_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
