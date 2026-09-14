@@ -248,3 +248,28 @@ offline) and "the document reads correctly" (only checkable against a real model
   real deployment. Logged as D-74.
 - **Time lost:** ~15 minutes — found by testing one phrase past the fix that had just shipped for
   "tomorrow", which is exactly why the fix was tested with more than the one phrase that prompted it.
+
+### Bug: the D-74 fallback itself was unsafe — "in 2 months" silently defaulted to today
+- **Symptom:** Testing "in 2 months" as `effective_date` (a natural next probe after the D-74 fix)
+  returned `AUTO_FILLED_WITH_ASSUMPTION` with today's date — no warning, same failure shape as the
+  D-74 bug, just not caught by that fix.
+- **Hypothesis:** The live model classified "in 2 months" as `derived`, reasonably generalizing from
+  the day-based "derived" examples the prompt now lists (D-73, D-74). But `tools/parser.py` only
+  understands day-based offsets, so `parse_date` returned `None`. The D-73 fallback — added to
+  `_canonicalize_parsed_fields` specifically to handle "the model says derived but the parser can't
+  confirm it" — was `format_long_date(now.date())`, i.e. silently guess today.
+- **Evidence:** `curl /api/run` with `effective_date: "in 2 months"` returned
+  `value_for_document: "14 September 2026"` (the live base date) with no G8/G9 flag anywhere.
+- **Fix:** Changed the fallback in `_canonicalize_parsed_fields`: when `parse_date` returns `None` for
+  a `DERIVED`-classified field, downgrade `interpretation` to `AMBIGUOUS` (`normalized_value=None`)
+  instead of guessing today. This routes through `G8_ambiguity`, which already correctly falls back
+  to showing `raw_value` when `normalized_value` is `None` (`core/router.py::_value_for_document`).
+- **Prevention:** unit test asserting a `DERIVED` field with unparseable raw text downgrades to
+  `AMBIGUOUS`, not today. Verified live: "in 2 months" -> `G8_ambiguity`, raw text shown; "next week"
+  (already correct) and the resolvable D-73/D-74 phrases unaffected. Logged as D-75.
+- **Pattern, not just three bugs:** all three of these (D-73, D-74, D-75) were found by testing one
+  input past whatever the previous fix had just covered — "tomorrow" led to "three days after today"
+  led to "in 2 months". The lesson that generalizes: broadening what an LLM may classify as `derived`
+  always needs a corresponding audit of every place downstream code assumed `derived` meant
+  "resolvable," not just adding the new phrase's own resolution logic.
+- **Time lost:** ~15 minutes.

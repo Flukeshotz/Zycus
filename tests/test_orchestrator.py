@@ -299,6 +299,31 @@ class TestCanonicalizeParsedFields:
         assert result == tomorrow_str
         assert result != today_str
 
+    def test_derived_but_unparseable_downgrades_to_ambiguous_not_today(self):
+        # D-75: found live with "in 2 months" — the model classified this
+        # DERIVED (a reasonable generalization from the day-based "derived"
+        # examples in the prompt, but our parser only understands day-based
+        # offsets), and the deterministic parser genuinely cannot resolve
+        # it. The D-73 fallback (format_long_date(now.date()) when parsing
+        # fails) would have silently produced today's date here — exactly
+        # the D-74 bug shape, reached through a different door. Must
+        # downgrade to AMBIGUOUS so G8 shows the raw text to a human
+        # instead of G10 auto-filling a confident, wrong date.
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "in 2 months"})
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="in 2 months",
+                normalized_value=None, duration_months=None,
+                interpretation=Interpretation.DERIVED, confidence=Confidence.MEDIUM, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, inputs, now, "Asia/Kolkata")
+        result = normalized_by_field["effective_date"]
+        assert result.interpretation == Interpretation.AMBIGUOUS
+        assert result.normalized_value is None
+        assert result.normalized_value != format_long_date(now.date())
+
     def test_effective_date_does_not_touch_a_clear_explicit_date(self):
         normalized_by_field = {
             "effective_date": NormalizedField(

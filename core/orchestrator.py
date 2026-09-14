@@ -332,13 +332,28 @@ def _canonicalize_parsed_fields(
         # an unresolved echo of the input (both observed live) — only the
         # parser's resolution is ever correct here. Re-parse the raw input
         # ourselves rather than assuming "today" (D-73) — the offset
-        # (today / tomorrow / day after tomorrow) must come from what the
-        # user actually typed.
+        # (today / tomorrow / day after tomorrow / N days ...) must come
+        # from what the user actually typed.
         parsed = parse_date(inputs.effective_date, tz)
-        resolved = format_long_date(parsed.value) if parsed else format_long_date(now.date())
-        if date_nf.normalized_value != resolved:
+        if parsed is not None:
+            resolved = format_long_date(parsed.value)
+            if date_nf.normalized_value != resolved:
+                normalized_by_field["effective_date"] = date_nf.model_copy(
+                    update={"normalized_value": resolved}
+                )
+        else:
+            # D-75: found live with "in 2 months" — the model classified it
+            # DERIVED (our prompt's "derived" examples don't cover months,
+            # but the model over-generalized from the day-based ones), and
+            # our deterministic parser genuinely cannot resolve it. This
+            # must NEVER fall back to format_long_date(now.date()) — that
+            # was the exact shape of the D-74 bug, just reached through a
+            # different door. When the model's classification and the
+            # parser's own capability disagree, downgrade to AMBIGUOUS so
+            # G8 routes it to a human with the raw text visible, instead of
+            # G10 auto-filling a confident, silently wrong date.
             normalized_by_field["effective_date"] = date_nf.model_copy(
-                update={"normalized_value": resolved}
+                update={"interpretation": Interpretation.AMBIGUOUS, "normalized_value": None}
             )
 
     for field_name in ("term", "survival_period"):

@@ -756,6 +756,36 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
   pattern that would otherwise swallow it. *this generalizes further (e.g. "N weeks after today")* →
   same treatment, same ordering constraint — extend the pattern, don't special-case it separately.
 
+### D-75 · The D-73 fallback itself was unsafe: DERIVED-but-unparseable was defaulting to today
+- **Decision:** In `core/orchestrator.py::_canonicalize_parsed_fields`, when the model classifies
+  `effective_date` as `DERIVED` but `tools/parser.py::parse_date` cannot resolve the raw text at all,
+  the field is now downgraded to `Interpretation.AMBIGUOUS` (`normalized_value=None`) instead of
+  falling back to `format_long_date(now.date())`. This routes it through `G8_ambiguity`, which shows
+  the raw input text to a human, instead of `G10_assumption` auto-filling today's date.
+- **Why:** found live, immediately after D-74 shipped, by testing "in 2 months" — the live model
+  reasonably generalized `derived` from the day-based examples in the prompt (D-73, D-74) to a
+  month-based phrase our parser doesn't handle. The D-73 fallback — added specifically to preserve
+  old behavior for exactly this kind of mismatch — silently produced today's date with no warning:
+  the identical failure shape as D-74, reached through a different door (the orchestrator's fallback
+  rather than a parser substring collision). This is the second time broadening what the model may
+  call `derived` has exposed a spot where "the deterministic layer couldn't confirm it" was
+  incorrectly treated as "assume today" instead of "ask a human." The general lesson, not just a
+  patch: whenever the model's classification and the parser's own capability disagree, the parser's
+  inability to resolve something must always win as a downgrade to ambiguity — it must never fall
+  back to a guessed value, no matter how that disagreement arises.
+- **Verified:** unit test on `_canonicalize_parsed_fields` (a `DERIVED` fixture with unparseable raw
+  text must downgrade to `AMBIGUOUS`, not resolve to today) and live against the real deployment —
+  "in 2 months" → `G8_ambiguity`, raw text shown, no date guessed; "next week" (already correctly
+  ambiguous pre-fix) and the D-73/D-74 resolvable phrases (`tomorrow`, `three days after today`)
+  unaffected. 228/228 tests passing (was 227; 1 added).
+- **If it breaks:** *a genuinely resolvable relative phrase now gets flagged ambiguous instead of
+  resolved* → its pattern is missing from `tools/parser.py`, not a router problem — add the pattern
+  (D-73/D-74 style) rather than reverting this fix, since reverting reopens the silent-wrong-date bug.
+  *a new DERIVED-but-unparseable case still resolves to today* → confirm the `else` branch in
+  `_canonicalize_parsed_fields` wasn't bypassed or a new fallback path was added elsewhere; there
+  must be exactly one way a DERIVED field's value is ever produced — parser resolution or ambiguity,
+  never a default.
+
 ---
 
 ## Revision Log
@@ -766,4 +796,4 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
 | 2026-09-13 | Stack change: runtime LLM → Groq (D-55–D-60); hosting → Vercel with FastAPI + static UI and signed stateless HITL (D-61–D-64); secrets and repo (D-65–D-66); spike v2 (D-67); Prompt Guard stretch (D-68); Gemini fallback (D-69). Superseded D-24, D-28, D-29, D-35, D-36, D-37, D-44. D-41 cut line updated |
 | 2026-09-13 | Phase 0 spike run: 10/10 checks passed live against Groq + Gemini. D-32 resolved 🟡→✅ (Word comments supported). Implementation notes added to D-68 (raw float response) and D-69 (verified but stays conditional) |
 | 2026-09-13 | Post-P6 audit: D-70 (Gemini fallback now auto-enabled by key presence, `ENABLE_FALLBACK` superseded by `DISABLE_FALLBACK`, eval reproducibility fixed), D-71 (table overflow, 422 error handling, test hygiene), D-72 (pushed P7 deliverables that were staged but never reached `origin/main`; created `v1.0`) |
-| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing. D-74: "N days after/before/from today" and "in N days" were silently matching the bare "today" pattern and resolving to the wrong date with no warning — fixed with specific-before-general pattern ordering; 227/227 tests passing |
+| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing. D-74: "N days after/before/from today" and "in N days" were silently matching the bare "today" pattern and resolving to the wrong date with no warning — fixed with specific-before-general pattern ordering; 227/227 tests passing. D-75: the D-73 fallback itself was unsafe — a DERIVED-but-parser-unresolvable date ("in 2 months") was silently defaulting to today; now downgrades to ambiguous instead; 228/228 tests passing |
