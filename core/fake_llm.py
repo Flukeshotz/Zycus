@@ -94,7 +94,7 @@ class FakeLLM:
             Interpretation.DERIVED if parsed.interpretation == "derived" else Interpretation.CLEAR
         )
         reason = (
-            f"Resolved 'today' to {formatted} in {self.tz}."
+            f"Resolved the relative date reference to {formatted} in {self.tz}."
             if interpretation == Interpretation.DERIVED
             else "Explicit date provided."
         )

@@ -194,3 +194,35 @@ offline) and "the document reads correctly" (only checkable against a real model
 - **Time lost:** ~5 minutes.
 
 
+
+
+## Post-launch (live UI testing)
+
+### Bug: "tomorrow" / "day after tomorrow" leaked as raw text, and a latent hardcoded-to-today bug
+- **Symptom:** Typing "tomorrow" as `effective_date` in the live UI produced a `G8_ambiguity` flag with
+  the literal word "tomorrow" shown as the document value — the same class of un-resolved-placeholder
+  leak the planted "today's date" issue exists to catch, just for a phrase the original fix didn't
+  anticipate. Found by hand-testing the deployed app, not by a written test.
+- **Hypothesis:** `tools/parser.py::parse_date` only recognized "today"-style phrasing; anything else
+  fell through to `None`, and the live Normalizer's system prompt only exemplified "today" as
+  `derived`, so the model called "tomorrow" `ambiguous` instead.
+- **Evidence:** `curl /api/run` with `effective_date: "tomorrow"` returned
+  `{"status": "NEEDS_REVIEW", "gate": "G8_ambiguity", "value_for_document": "tomorrow"}`.
+- **Deeper bug found while fixing it:** `core/orchestrator.py::_canonicalize_parsed_fields` didn't call
+  the parser at all for `DERIVED` effective_date — it hardcoded `format_long_date(now.date())`
+  unconditionally. Extending the parser and prompt alone would have made the live model start
+  classifying "tomorrow" as `derived`, and this hardcoded line would have then silently resolved it
+  to **today's** date instead of tomorrow's — a wrong date shipped confidently, worse than the
+  original ambiguity flag it replaced. Caught by reasoning through the fix's blast radius before
+  shipping it, not by a failing test (no test exercised a non-"today" DERIVED value at the time).
+- **Fix:** Extended `parse_date` with `timedelta`-based offsets for "tomorrow" (+1) and "day after
+  tomorrow" (+2), checked in that order since the latter contains the former as a substring. Updated
+  `agents/normalizer.py`'s system prompt to classify both as `derived`. Changed
+  `_canonicalize_parsed_fields` to re-parse `inputs.effective_date` with the same parser instead of
+  assuming a zero offset, falling back to today only when the parser can't resolve the text at all.
+- **Prevention:** `tests/test_parser.py` (pattern-order test for the tomorrow/day-after-tomorrow
+  substring collision), `tests/test_orchestrator.py::TestCanonicalizeParsedFields` (explicit
+  regression: a DERIVED "tomorrow" must resolve to tomorrow's date, not today's) and
+  `TestRelativeEffectiveDateEndToEnd` (full pipeline, both phrases). Verified live against the real
+  Groq deployment for all three phrases before and after. Logged as D-73.
+- **Time lost:** ~20 minutes.

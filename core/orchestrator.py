@@ -288,19 +288,32 @@ def _canonicalize_parsed_fields(
     """
     The deterministic parser (tools/parser.py) is the source of truth for
     how date/duration fields are *displayed* — never whatever text the live
-    Normalizer happened to put in normalized_value. This fixes two real
-    live-only bugs found in P3's first live run, neither of which FakeLLM
-    could exhibit (it already builds normalized_value from the parser):
+    Normalizer happened to put in normalized_value. This fixes real
+    live-only bugs found in P3's first live run and in later live testing
+    (D-73), none of which FakeLLM could exhibit (it already builds
+    normalized_value from the parser):
 
       1. effective_date: the Normalizer's own system prompt (correctly)
          instructs it not to guess an actual date for a "derived" value —
-         only the deterministic layer resolves "today" (D-15). Observed
-         live responses varied: sometimes normalized_value=None (clean
-         deferral), sometimes a non-empty but still-unresolved echo like
-         "use today's date" (a placeholder in different clothes). Both
-         must be overridden by the parser's resolved value — trusting a
-         non-empty string here is never correct for a DERIVED field, since
-         the model was explicitly told not to compute one.
+         only the deterministic layer resolves relative date references
+         (D-15, extended by D-73 beyond "today" to "tomorrow" / "day after
+         tomorrow"). Observed live responses varied: sometimes
+         normalized_value=None (clean deferral), sometimes a non-empty but
+         still-unresolved echo like "use today's date" (a placeholder in
+         different clothes). Both must be overridden by the parser's
+         resolved value — trusting a non-empty string here is never correct
+         for a DERIVED field, since the model was explicitly told not to
+         compute one.
+
+         D-73: this must call parse_date() on the actual raw input rather
+         than assuming DERIVED always means "today" — an earlier version
+         hardcoded format_long_date(now.date()), which would have silently
+         resolved a DERIVED "tomorrow" to today's date the moment the
+         Normalizer (or a future prompt update) started classifying
+         "tomorrow" as derived instead of ambiguous. Falls back to today's
+         date only if the parser itself can't resolve the raw text — the
+         same safe default as before, now reached deliberately rather than
+         unconditionally.
       2. term / survival_period: the model echoed the raw input phrase
          ("2 years from effective date") into normalized_value instead of
          a clean value, producing an awkward, redundant sentence in the
@@ -317,8 +330,12 @@ def _canonicalize_parsed_fields(
         # Unconditional: a DERIVED value is never trustworthy from the
         # model, whether it left normalized_value empty or filled it with
         # an unresolved echo of the input (both observed live) — only the
-        # parser's "today" is ever correct here.
-        resolved = format_long_date(now.date())
+        # parser's resolution is ever correct here. Re-parse the raw input
+        # ourselves rather than assuming "today" (D-73) — the offset
+        # (today / tomorrow / day after tomorrow) must come from what the
+        # user actually typed.
+        parsed = parse_date(inputs.effective_date, tz)
+        resolved = format_long_date(parsed.value) if parsed else format_long_date(now.date())
         if date_nf.normalized_value != resolved:
             normalized_by_field["effective_date"] = date_nf.model_copy(
                 update={"normalized_value": resolved}

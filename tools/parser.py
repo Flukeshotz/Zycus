@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -87,6 +87,10 @@ _TODAY_PATTERN = re.compile(
     r"\b(today|use\s+today[’']?s\s+date|to\s+be\s+filled.*?today|current\s+date)\b",
     re.I,
 )
+# "day after tomorrow" must be checked before the bare "tomorrow" pattern,
+# since it contains "tomorrow" as a substring and needs a different offset.
+_DAY_AFTER_TOMORROW_PATTERN = re.compile(r"\bday\s+after\s+tomorrow\b", re.I)
+_TOMORROW_PATTERN = re.compile(r"\btomorrow\b", re.I)
 
 _MONTH_NAMES = [
     "january", "february", "march", "april", "may", "june",
@@ -111,10 +115,12 @@ class ParsedDate:
 
 def parse_date(text: str, tz: str) -> ParsedDate | None:
     """
-    Resolve "today" / "use today's date" to the current date in `tz`
+    Resolve a relative date reference — "today" / "use today's date",
+    "tomorrow", "day after tomorrow" — to a concrete date in `tz`
     (interpretation="derived"), or parse an explicit calendar date
     (interpretation="clear"). Returns None for anything else, including an
-    invalid calendar date (e.g. "31 February").
+    invalid calendar date (e.g. "31 February") or a genuinely ambiguous
+    relative phrase (e.g. "next quarter") that has no safe fixed offset.
     """
     if not text or not text.strip():
         return None
@@ -123,6 +129,14 @@ def parse_date(text: str, tz: str) -> ParsedDate | None:
     if _TODAY_PATTERN.search(stripped):
         today = datetime.now(ZoneInfo(tz)).date()
         return ParsedDate(value=today, interpretation="derived")
+
+    if _DAY_AFTER_TOMORROW_PATTERN.search(stripped):
+        today = datetime.now(ZoneInfo(tz)).date()
+        return ParsedDate(value=today + timedelta(days=2), interpretation="derived")
+
+    if _TOMORROW_PATTERN.search(stripped):
+        today = datetime.now(ZoneInfo(tz)).date()
+        return ParsedDate(value=today + timedelta(days=1), interpretation="derived")
 
     if m := _ISO_DATE_PATTERN.search(stripped):
         return _safe_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))

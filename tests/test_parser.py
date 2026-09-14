@@ -7,7 +7,7 @@ Required cases from the Claude Code prompt in implementation.md:
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from tools.parser import Duration, ParsedDate, format_long_date, parse_date, parse_duration
@@ -80,6 +80,29 @@ class TestParseDate:
         result = parse_date("today", "Asia/Kolkata")
         assert result is not None
         assert result.interpretation == "derived"
+
+    def test_tomorrow_derived(self):
+        # D-73: "tomorrow" is just as unambiguous as "today" — resolve it,
+        # don't leave it for a human to guess.
+        result = parse_date("tomorrow", "Asia/Kolkata")
+        assert result is not None
+        assert result.interpretation == "derived"
+        expected = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
+        assert result.value == expected
+
+    def test_day_after_tomorrow_derived(self):
+        result = parse_date("day after tomorrow", "Asia/Kolkata")
+        assert result is not None
+        assert result.interpretation == "derived"
+        expected = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=2)
+        assert result.value == expected
+
+    def test_day_after_tomorrow_not_mistaken_for_tomorrow(self):
+        # "day after tomorrow" contains "tomorrow" as a substring — must not
+        # be caught by the bare-"tomorrow" pattern with the wrong offset.
+        tomorrow = parse_date("tomorrow", "Asia/Kolkata")
+        day_after = parse_date("day after tomorrow", "Asia/Kolkata")
+        assert day_after.value == tomorrow.value + timedelta(days=1)
 
     def test_explicit_day_month_year(self):
         result = parse_date("1 October 2026", "Asia/Kolkata")

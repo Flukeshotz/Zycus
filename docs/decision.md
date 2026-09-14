@@ -699,6 +699,39 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
   rebuilt from the new commit (check the dashboard's latest deployment SHA); `public/` files need a
   redeploy to reach the CDN, same as any other static asset change.
 
+### D-73 · Relative effective_date resolution extended beyond "today" to "tomorrow" / "day after tomorrow"
+- **Decision:** `tools/parser.py::parse_date` now resolves "tomorrow" and "day after tomorrow" the
+  same deterministic way it already resolved "today" (D-15) — via `timedelta` offsets, not a guess.
+  `agents/normalizer.py`'s system prompt was updated so the live model classifies all three as
+  `derived` (previously only "today" was exemplified; "tomorrow" was live-tested and came back
+  `ambiguous`, routing to `G8_ambiguity` with the raw word "tomorrow" left in the document — the
+  exact class of literal-text leak the assignment's planted issue #3 exists to catch, just for a
+  phrase the original fix didn't anticipate). `core/orchestrator.py::_canonicalize_parsed_fields`
+  was also fixed: it previously hardcoded `format_long_date(now.date())` for *every* DERIVED
+  effective_date, which would have silently resolved a DERIVED "tomorrow" to **today's** date the
+  moment the prompt started classifying it as derived — it now re-parses `inputs.effective_date`
+  with the same parser instead of assuming the offset is always zero, falling back to today only if
+  the parser genuinely can't resolve the text (unchanged safe default for that case).
+- **Why:** found by hand-testing the deployed app with "tomorrow" as an effective-date input — a
+  natural thing for a reviewer to type, not a contrived edge case. The system's own design principle
+  (D-15: only the deterministic layer resolves relative dates, never an LLM guess) applies just as
+  much to "tomorrow" as to "today"; leaving it unresolved was an unintentional gap in what the
+  pattern covered, not a deliberate scope boundary. Genuinely ambiguous relative phrases ("next
+  quarter", "once signed") are deliberately left unresolved — no single fixed date follows from them,
+  so `G8_ambiguity` is still the correct, safe outcome there.
+- **Verified:** offline (`tests/test_parser.py`, `tests/test_orchestrator.py`, FakeLLM/pipeline
+  end-to-end) and live against the real deployment — `tomorrow` → next day's date, `day after
+  tomorrow` → two days out, `today` unchanged, all `AUTO_FILLED_WITH_ASSUMPTION`/`G10_assumption`,
+  none left ambiguous. 221/221 tests passing (was 215; 6 added).
+- **If it breaks:** *a relative phrase resolves to the wrong date* → check `tools/parser.py`'s
+  pattern order — "day after tomorrow" must be matched before the bare "tomorrow" pattern, since it
+  contains "tomorrow" as a substring. *the live model still classifies "tomorrow" as ambiguous* →
+  the prompt is guidance, not a guarantee; `G8_ambiguity` is the safe fallback either way, so this
+  degrades to the pre-fix behavior rather than producing a wrong date. *a new relative phrase (e.g.
+  "next Monday") needs the same treatment* → do not add it to `_TODAY_PATTERN`-style regex matching
+  without a fixed, unambiguous offset — anything genuinely calendar-dependent belongs in
+  `G8_ambiguity`, not a guess.
+
 ---
 
 ## Revision Log
@@ -709,3 +742,4 @@ All 10 capability-spike checks (`scripts/sdk_smoke.py`) passed against the live 
 | 2026-09-13 | Stack change: runtime LLM → Groq (D-55–D-60); hosting → Vercel with FastAPI + static UI and signed stateless HITL (D-61–D-64); secrets and repo (D-65–D-66); spike v2 (D-67); Prompt Guard stretch (D-68); Gemini fallback (D-69). Superseded D-24, D-28, D-29, D-35, D-36, D-37, D-44. D-41 cut line updated |
 | 2026-09-13 | Phase 0 spike run: 10/10 checks passed live against Groq + Gemini. D-32 resolved 🟡→✅ (Word comments supported). Implementation notes added to D-68 (raw float response) and D-69 (verified but stays conditional) |
 | 2026-09-13 | Post-P6 audit: D-70 (Gemini fallback now auto-enabled by key presence, `ENABLE_FALLBACK` superseded by `DISABLE_FALLBACK`, eval reproducibility fixed), D-71 (table overflow, 422 error handling, test hygiene), D-72 (pushed P7 deliverables that were staged but never reached `origin/main`; created `v1.0`) |
+| 2026-09-14 | UI: dark theme replaced with a light theme (flat surfaces, no gradients/blur). D-73: relative effective_date resolution extended to "tomorrow" / "day after tomorrow" (parser, live-model prompt, and a hardcoded-to-today canonicalization bug all fixed); 221/221 tests passing |

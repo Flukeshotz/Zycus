@@ -40,10 +40,15 @@ null if not a duration field, unparseable, or perpetual (use normalized_value="p
 Interpretation guide, with examples:
 - "clear": the value is unambiguous. "2 years from effective date" -> clear, \
 duration_months=24. "1 October 2026" -> clear.
-- "derived": the value must be computed, most commonly "use today's date" for \
-effective_date -> derived (do not guess an actual date; the caller resolves this).
-- "ambiguous": the value cannot be confidently interpreted. "until the project \
-ends" for a term -> ambiguous, duration_months=null.
+- "derived": the value must be computed from a fixed, unambiguous relative \
+reference for effective_date -> derived (do not guess an actual date; the caller \
+resolves this). This covers "use today's date" / "today", "tomorrow", and "day \
+after tomorrow" — all three have exactly one correct resolved date, so none of \
+them are ambiguous.
+- "ambiguous": the value cannot be confidently interpreted, or refers to an event \
+whose date isn't fixed. "until the project ends" for a term -> ambiguous, \
+duration_months=null. "next quarter" or "once signed" for effective_date -> \
+ambiguous (no single fixed date follows from the phrase alone).
 - "not_applicable": the value explicitly says the field does not apply. \
 "Not applicable — this is an NDA, not a commercial agreement" for payment_terms -> \
 not_applicable. An empty special_clause is also not_applicable (nothing requested).

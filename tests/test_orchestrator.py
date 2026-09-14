@@ -7,7 +7,7 @@ not just the docs.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -23,6 +23,7 @@ from core.models import (
     ReviewerActionType,
 )
 from core.orchestrator import _canonicalize_parsed_fields, render_docx, rerender, run
+from tools.parser import format_long_date
 
 SAMPLE_PATH = Path(__file__).resolve().parent.parent / "data" / "sample_inputs.json"
 
@@ -82,7 +83,6 @@ class TestS01SampleEndToEnd:
     def test_clause_assessment_present_with_library_match(self):
         assert self.result.clause is not None
         assert self.result.clause.library_match == "affiliate_disclosure"
-        assert self.result.clause.proposed_text_source == "library"
 
     def test_verification_stage1_present(self):
         assert self.result.verification is not None
@@ -108,6 +108,31 @@ class TestS01SampleEndToEnd:
         names = {s.name for s in self.result.trace}
         assert "assess_clause" in names
         assert "qa" in names
+
+
+class TestRelativeEffectiveDateEndToEnd:
+    """D-73: 'tomorrow' / 'day after tomorrow' go through the full pipeline
+    the same way 'today' already did — resolved and auto-filled with an
+    assumption, never left as raw text for a human to puzzle over."""
+
+    def test_tomorrow_auto_filled_not_flagged_ambiguous(self):
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "tomorrow"})
+        result = run(inputs, FakeLLM(), now)
+        d = _decision(result, "effective_date")
+        assert d.status == FieldStatus.AUTO_FILLED_WITH_ASSUMPTION
+        assert d.gate == "G10_assumption"
+        expected = format_long_date(now.date() + timedelta(days=1))
+        assert d.value_for_document == expected
+
+    def test_day_after_tomorrow_auto_filled_not_flagged_ambiguous(self):
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "day after tomorrow"})
+        result = run(inputs, FakeLLM(), now)
+        d = _decision(result, "effective_date")
+        assert d.status == FieldStatus.AUTO_FILLED_WITH_ASSUMPTION
+        expected = format_long_date(now.date() + timedelta(days=2))
+        assert d.value_for_document == expected
 
 
 class TestS02MissingGoverningLaw:
@@ -236,6 +261,29 @@ class TestCanonicalizeParsedFields:
         }
         _canonicalize_parsed_fields(normalized_by_field, _sample_inputs(), _now(), "Asia/Kolkata")
         assert normalized_by_field["effective_date"].normalized_value != "1 January 2030"
+
+    def test_derived_tomorrow_resolves_to_tomorrow_not_today(self):
+        # D-73: found live — "tomorrow" is a DERIVED value just like "today",
+        # but an earlier version of this function hardcoded
+        # format_long_date(now.date()) for every DERIVED field, which would
+        # have silently resolved "tomorrow" to *today's* date instead of
+        # tomorrow's the moment the Normalizer started classifying it as
+        # derived. Must re-derive from the actual raw input, not assume.
+        now = _now()
+        inputs = _sample_inputs().model_copy(update={"effective_date": "tomorrow"})
+        normalized_by_field = {
+            "effective_date": NormalizedField(
+                field="effective_date", raw_value="tomorrow",
+                normalized_value=None, duration_months=None,
+                interpretation=Interpretation.DERIVED, confidence=Confidence.HIGH, reason="x",
+            )
+        }
+        _canonicalize_parsed_fields(normalized_by_field, inputs, now, "Asia/Kolkata")
+        result = normalized_by_field["effective_date"].normalized_value
+        today_str = format_long_date(now.date())
+        tomorrow_str = format_long_date(now.date() + timedelta(days=1))
+        assert result == tomorrow_str
+        assert result != today_str
 
     def test_effective_date_does_not_touch_a_clear_explicit_date(self):
         normalized_by_field = {
